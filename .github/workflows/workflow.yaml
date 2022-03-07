@@ -6,15 +6,12 @@ on:
       - master
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
         with:
           go-version: '1.x'
-      - name: Enable unprivilieged pings via UDP
-        run: |
-          sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"
       - name: Run unit tests and code-coverage
         run: |
           go test -covermode=atomic ./...
