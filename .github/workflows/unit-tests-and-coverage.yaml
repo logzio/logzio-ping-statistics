@@ -1,4 +1,4 @@
-name: Automatic tests and code-coverage
+name: unit tests and code-coverage
 on:
   workflow_dispatch:
   push:

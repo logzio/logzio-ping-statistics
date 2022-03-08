@@ -1,0 +1,31 @@
+name: upload auto-deployment and function zip files into AWS S3 bucket
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["unit tests and code-coverage"]
+    types:
+      - completed
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.x'
+      - name: Build, set capabilities to binary file and zip
+        run: |
+          GOOS=linux go build -o bootstrap main.go
+          setcap cap_net_raw=+ep ./bootstrap
+          zip function.zip ./bootstrap
+      - name: Upload files into S3 bucket
+        run: |
+          go run action/run.go
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          BUCKET_NAME: logzio-aws-integrations-us-east-1
+          BUCKET_DIR: ping-statistics-auto-deployment
+          SRC_DIR: .
+          AUTO_DEPLOYMENT_FILE: auto-deployment.yaml
+          FUNCTION_ZIP_FILE: function.zip

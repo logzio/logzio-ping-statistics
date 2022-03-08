@@ -14,9 +14,10 @@ Parameters:
     MinValue: 1
     MaxValue: 25
   PingInterval:
-    Type: String
+    Type: Number
     Description: >-
       The time to wait (seconds) between each packet send. Must be 1 or higher number.
+    Default: 1
     MinValue: 1
   LogzioMetricsListener:
     Type: String
