@@ -16,7 +16,7 @@ jobs:
       - name: Build, set capabilities to binary file and zip
         run: |
           GOOS=linux go build -o bootstrap main.go
-          setcap cap_net_raw=+ep ./bootstrap
+          sudo setcap cap_net_raw=+ep ./bootstrap
           zip function.zip ./bootstrap
       - name: Upload files into S3 bucket
         run: |
