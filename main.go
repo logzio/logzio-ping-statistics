@@ -160,6 +160,7 @@ func (lps *logzioPingStatistics) createPinger(address string) (*ping.Pinger, err
 
 	pinger.Count = lps.pingCount
 	pinger.Interval = lps.pingInterval
+	pinger.SetPrivileged(true)
 
 	return pinger, nil
 }
