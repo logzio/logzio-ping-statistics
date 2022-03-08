@@ -18,14 +18,16 @@ jobs:
           GOOS=linux go build -o bootstrap main.go
           sudo setcap cap_net_raw=+ep ./bootstrap
           zip function.zip ./bootstrap
+          cp function.zip ./aws
       - name: Upload files into S3 bucket
         run: |
-          go run action/run.go
+          cd action
+          go run run.go
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           BUCKET_NAME: logzio-aws-integrations-us-east-1
           BUCKET_DIR: ping-statistics-auto-deployment
-          SRC_DIR: .
+          SRC_DIR: ../aws
           AUTO_DEPLOYMENT_FILE: auto-deployment.yaml
           FUNCTION_ZIP_FILE: function.zip
