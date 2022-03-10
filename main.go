@@ -3,13 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/aws/aws-lambda-go/lambda"
 	"log"
+	"net"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/go-ping/ping"
 	metricsExporter "github.com/logzio/go-metrics-sdk"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -19,21 +21,22 @@ import (
 )
 
 const (
-	addressesEnvName                = "ADDRESSES"
-	pingCountEnvName                = "PING_COUNT"
-	pingIntervalEnvName             = "PING_INTERVAL"
-	logzioMetricsListenerEnvName    = "LOGZIO_METRICS_LISTENER"
-	logzioMetricsTokenEnvName       = "LOGZIO_METRICS_TOKEN"
-	awsRegionEnvName                = "AWS_REGION"
-	awsLambdaFunctionNameEnvName    = "AWS_LAMBDA_FUNCTION_NAME"
-	maxPingCount                    = 25
-	meterName                       = "ping_stats"
-	rttMetricName                   = meterName + "_rtt"
-	stdDevRttMetricName             = meterName + "_std_dev_rtt"
-	packetsSentMetricName           = meterName + "_packets_sent"
-	packetsLossMetricName           = meterName + "_packets_loss"
-	packetsRecvMetricName           = meterName + "_packets_recv"
-	packetsRecvDuplicatesMetricName = meterName + "_packets_recv_duplicates"
+	addressesEnvName             = "ADDRESSES"
+	pingCountEnvName             = "PING_COUNT"
+	pingIntervalEnvName          = "PING_INTERVAL"
+	pingTimeoutEnvName           = "PING_TIMEOUT"
+	logzioMetricsListenerEnvName = "LOGZIO_METRICS_LISTENER"
+	logzioMetricsTokenEnvName    = "LOGZIO_METRICS_TOKEN"
+	awsRegionEnvName             = "AWS_REGION"
+	awsLambdaFunctionNameEnvName = "AWS_LAMBDA_FUNCTION_NAME"
+	addressHttpsPrefix           = "https://"
+	addressHttpPrefix            = "http://"
+	addressSuffixDefaultPort     = ":80"
+	meterName                    = "ping_stats"
+	rttMetricName                = meterName + "_rtt"
+	probesSentMetricName         = meterName + "_probes_sent"
+	successfulProbesMetricName   = meterName + "_successful_probes"
+	probesFailedMetricName       = meterName + "_probes_failed"
 )
 
 var (
@@ -43,15 +46,26 @@ var (
 )
 
 type logzioPingStatistics struct {
+	ctx                   context.Context
 	logzioMetricsListener string
 	logzioMetricsToken    string
 	addresses             []string
 	pingCount             int
 	pingInterval          time.Duration
-	pingsStats            []*ping.Statistics
+	pingTimeout           time.Duration
+	pingsStats            []*pingStatistics
 }
 
-func newLogzioPingStatistics() (*logzioPingStatistics, error) {
+type pingStatistics struct {
+	probesSent       int
+	successfulProbes int
+	probesFailed     int
+	addressIP        string
+	address          string
+	rtts             []float64
+}
+
+func newLogzioPingStatistics(ctx context.Context) (*logzioPingStatistics, error) {
 	logzioMetricsListener := os.Getenv(logzioMetricsListenerEnvName)
 	if logzioMetricsListener == "" {
 		return nil, fmt.Errorf("%s must not be empty", logzioMetricsListenerEnvName)
@@ -67,62 +81,91 @@ func newLogzioPingStatistics() (*logzioPingStatistics, error) {
 		return nil, fmt.Errorf("%s must not be empty", addressesEnvName)
 	}
 
-	pingCount, err := strconv.Atoi(os.Getenv(pingCountEnvName))
+	addresses := getAddresses(addressesString)
+
+	pingCount, err := getNumberEnvValue(os.Getenv(pingCountEnvName), pingCountEnvName)
 	if err != nil {
-		return nil, fmt.Errorf("%s must be a number", pingCountEnvName)
+		return nil, err
 	}
 
-	if pingCount < 1 || pingCount > maxPingCount {
-		return nil, fmt.Errorf("%s must be between 1 and %d (include)", pingCountEnvName, maxPingCount)
-	}
-
-	pingInterval, err := strconv.Atoi(os.Getenv(pingIntervalEnvName))
+	pingInterval, err := getNumberEnvValue(os.Getenv(pingIntervalEnvName), pingIntervalEnvName)
 	if err != nil {
-		return nil, fmt.Errorf("%s must be a number", pingIntervalEnvName)
+		return nil, err
 	}
 
-	if pingInterval < 1 {
-		return nil, fmt.Errorf("%s must be greater or equal to 1", pingIntervalEnvName)
+	pingTimeout, err := getNumberEnvValue(os.Getenv(pingTimeoutEnvName), pingTimeoutEnvName)
+	if err != nil {
+		return nil, err
 	}
-
-	debugLogger.Println("Creating logzioPingStatistics instance...")
 
 	return &logzioPingStatistics{
+		ctx:                   ctx,
 		logzioMetricsListener: logzioMetricsListener,
 		logzioMetricsToken:    logzioMetricsToken,
-		addresses:             strings.Split(addressesString, ","),
-		pingCount:             pingCount,
-		pingInterval:          time.Duration(pingInterval) * time.Second,
-		pingsStats:            make([]*ping.Statistics, 0),
+		addresses:             addresses,
+		pingCount:             *pingCount,
+		pingInterval:          time.Duration(*pingInterval) * time.Second,
+		pingTimeout:           time.Duration(*pingTimeout) * time.Second,
+		pingsStats:            make([]*pingStatistics, 0),
 	}, nil
 }
 
-func (lps *logzioPingStatistics) getPingStatistics(pinger *ping.Pinger) (*ping.Statistics, error) {
-	debugLogger.Println("Getting ping statistics for address:", pinger.Addr())
+func (lps *logzioPingStatistics) getAddressPingStatistics(address string) (*pingStatistics, error) {
+	debugLogger.Println("Getting ping statistics for address:", address)
 
-	if err := pinger.Run(); err != nil {
-		return nil, fmt.Errorf("error running pinger: %v", err)
+	rtts := make([]float64, 0)
+	successfulProbes := 0
+	var addressIP string
+
+	for count := 0; count < lps.pingCount; count++ {
+		time.Sleep(lps.pingInterval)
+
+		start := time.Now()
+		conn, err := net.DialTimeout("tcp", address, lps.pingTimeout)
+		if err != nil {
+			errorLogger.Println("Error connecting to address:", address, ":", err)
+			continue
+		}
+
+		end := time.Now()
+
+		if count+1 == lps.pingCount {
+			addressIP = conn.RemoteAddr().String()
+		}
+
+		if err = conn.Close(); err != nil {
+			return nil, fmt.Errorf("error closing connection: %v", err)
+		}
+
+		rtt := float64(end.Sub(start)) / float64(time.Millisecond)
+		successfulProbes++
+
+		rtts = append(rtts, rtt)
 	}
 
-	return pinger.Statistics(), nil
+	if len(rtts) == 0 {
+		errorLogger.Println("Did not get ping statistics rtts for address:", address)
+	}
+
+	return &pingStatistics{
+		probesSent:       lps.pingCount,
+		successfulProbes: successfulProbes,
+		probesFailed:     lps.pingCount - successfulProbes,
+		addressIP:        addressIP,
+		address:          address,
+		rtts:             rtts,
+	}, nil
 }
 
-func (lps *logzioPingStatistics) getPingsStatistics() error {
+func (lps *logzioPingStatistics) getAllAddressesPingStatistics() error {
 	debugLogger.Println("Getting ping statistics for all addresses...")
 
-	pingStatsChan := make(chan *ping.Statistics)
+	pingStatsChan := make(chan *pingStatistics)
 	defer close(pingStatsChan)
 
 	for _, address := range lps.addresses {
-		go func(address string, pingStatsChan chan *ping.Statistics) {
-			pinger, err := lps.createPinger(address)
-			if err != nil {
-				errorLogger.Println(err)
-				pingStatsChan <- nil
-				return
-			}
-
-			pingStats, err := lps.getPingStatistics(pinger)
+		go func(address string) {
+			pingStats, err := lps.getAddressPingStatistics(address)
 			if err != nil {
 				errorLogger.Println("Error getting ping statistics for address", address, ":", err)
 				pingStatsChan <- nil
@@ -130,7 +173,7 @@ func (lps *logzioPingStatistics) getPingsStatistics() error {
 			}
 
 			pingStatsChan <- pingStats
-		}(address, pingStatsChan)
+		}(address)
 	}
 
 	for range lps.addresses {
@@ -139,30 +182,11 @@ func (lps *logzioPingStatistics) getPingsStatistics() error {
 		}
 	}
 
-	pingStatsSize := len(lps.pingsStats)
-
-	if pingStatsSize == 0 {
-		return fmt.Errorf("did not get ping statistics for all addresses")
+	if len(lps.pingsStats) == 0 {
+		return fmt.Errorf("did not get ping statistics for any given address")
 	}
-
-	debugLogger.Println("Got", pingStatsSize, "ping/s statistics")
 
 	return nil
-}
-
-func (lps *logzioPingStatistics) createPinger(address string) (*ping.Pinger, error) {
-	debugLogger.Println("Creating Pinger for address: ", address)
-
-	pinger, err := ping.NewPinger(address)
-	if err != nil {
-		return nil, fmt.Errorf("error creating pinger: %v", err)
-	}
-
-	pinger.Count = lps.pingCount
-	pinger.Interval = lps.pingInterval
-	pinger.SetPrivileged(true)
-
-	return pinger, nil
 }
 
 func (lps *logzioPingStatistics) createController() (*controller.Controller, error) {
@@ -192,12 +216,12 @@ func (lps *logzioPingStatistics) getRttObserverCallback() func(context.Context, 
 		debugLogger.Println("Running RTT observer callback...")
 
 		for _, pingStats := range lps.pingsStats {
-			for index, rtt := range pingStats.Rtts {
-				result.Observe(float64(rtt)/float64(time.Millisecond),
-					attribute.String("address", pingStats.Addr),
-					attribute.String("ip", pingStats.IPAddr.String()),
+			for index, rtt := range pingStats.rtts {
+				result.Observe(rtt,
+					attribute.String("address", pingStats.address),
+					attribute.String("ip", pingStats.addressIP),
 					attribute.Int("rtt_index", index+1),
-					attribute.Int("total_rtts", lps.pingCount),
+					attribute.Int("total_rtts", len(pingStats.rtts)),
 					attribute.String("unit", "milliseconds"),
 				)
 			}
@@ -205,70 +229,43 @@ func (lps *logzioPingStatistics) getRttObserverCallback() func(context.Context, 
 	}
 }
 
-func (lps *logzioPingStatistics) getStdDevRttObserverCallback() func(context.Context, metric.Float64ObserverResult) {
-	return func(_ context.Context, result metric.Float64ObserverResult) {
-		for _, pingStats := range lps.pingsStats {
-			debugLogger.Println("Running standard deviation RTT observer callback...")
-
-			result.Observe(float64(pingStats.StdDevRtt)/float64(time.Millisecond),
-				attribute.String("address", pingStats.Addr),
-				attribute.String("ip", pingStats.IPAddr.String()),
-				attribute.String("unit", "milliseconds"),
-			)
-		}
-	}
-}
-
-func (lps *logzioPingStatistics) getPacketsSentObserverCallback() func(context.Context, metric.Int64ObserverResult) {
+func (lps *logzioPingStatistics) getProbesSentObserverCallback() func(context.Context, metric.Int64ObserverResult) {
 	return func(_ context.Context, result metric.Int64ObserverResult) {
-		debugLogger.Println("Running packets sent observer callback...")
+		debugLogger.Println("Running probes sent observer callback...")
 
 		for _, pingStats := range lps.pingsStats {
-			result.Observe(int64(pingStats.PacketsSent),
-				attribute.String("address", pingStats.Addr),
-				attribute.String("ip", pingStats.IPAddr.String()))
+			result.Observe(int64(pingStats.probesSent),
+				attribute.String("address", pingStats.address),
+				attribute.String("ip", pingStats.addressIP))
 		}
 	}
 }
 
-func (lps *logzioPingStatistics) getPacketLossObserverCallback() func(context.Context, metric.Float64ObserverResult) {
-	return func(_ context.Context, result metric.Float64ObserverResult) {
-		debugLogger.Println("Running packet loss observer callback...")
-
-		for _, pingStats := range lps.pingsStats {
-			result.Observe(pingStats.PacketLoss,
-				attribute.String("address", pingStats.Addr),
-				attribute.String("ip", pingStats.IPAddr.String()))
-		}
-	}
-}
-
-func (lps *logzioPingStatistics) getPacketsRecvObserverCallback() func(context.Context, metric.Int64ObserverResult) {
+func (lps *logzioPingStatistics) getSuccessfulProbesObserverCallback() func(context.Context, metric.Int64ObserverResult) {
 	return func(_ context.Context, result metric.Int64ObserverResult) {
-		debugLogger.Println("Running packets received observer callback...")
+		debugLogger.Println("Running successful probes observer callback...")
 
 		for _, pingStats := range lps.pingsStats {
-			result.Observe(int64(pingStats.PacketsRecv),
-				attribute.String("address", pingStats.Addr),
-				attribute.String("ip", pingStats.IPAddr.String()))
+			result.Observe(int64(pingStats.successfulProbes),
+				attribute.String("address", pingStats.address),
+				attribute.String("ip", pingStats.addressIP))
 		}
 	}
 }
 
-func (lps *logzioPingStatistics) getPacketsRecvDuplicatesObserverCallback() func(context.Context, metric.Int64ObserverResult) {
+func (lps *logzioPingStatistics) getProbesFailedObserverCallback() func(context.Context, metric.Int64ObserverResult) {
 	return func(_ context.Context, result metric.Int64ObserverResult) {
-		debugLogger.Println("Running packets received duplicates observer callback...")
+		debugLogger.Println("Running probes failed observer callback...")
 
 		for _, pingStats := range lps.pingsStats {
-			result.Observe(int64(pingStats.PacketsRecvDuplicates),
-				attribute.String("address", pingStats.Addr),
-				attribute.String("ip", pingStats.IPAddr.String()))
+			result.Observe(int64(pingStats.probesFailed),
+				attribute.String("address", pingStats.address),
+				attribute.String("ip", pingStats.addressIP))
 		}
 	}
 }
 
 func (lps *logzioPingStatistics) collectMetrics() error {
-	ctx := context.Background()
 	cont, err := lps.createController()
 	if err != nil {
 		panic(fmt.Errorf("error creating controller: %v", err))
@@ -277,7 +274,7 @@ func (lps *logzioPingStatistics) collectMetrics() error {
 	debugLogger.Println("Collecting metrics...")
 
 	defer func() {
-		handleErr(cont.Stop(ctx))
+		handleErr(cont.Stop(lps.ctx))
 	}()
 
 	meter := cont.Meter(meterName)
@@ -288,47 +285,35 @@ func (lps *logzioPingStatistics) collectMetrics() error {
 		metric.WithDescription("Ping RTT"),
 	)
 
-	_ = metric.Must(meter).NewFloat64GaugeObserver(
-		stdDevRttMetricName,
-		lps.getStdDevRttObserverCallback(),
-		metric.WithDescription("Ping standard deviation RTT"),
+	_ = metric.Must(meter).NewInt64GaugeObserver(
+		probesSentMetricName,
+		lps.getProbesSentObserverCallback(),
+		metric.WithDescription("Ping probes sent"),
 	)
 
 	_ = metric.Must(meter).NewInt64GaugeObserver(
-		packetsSentMetricName,
-		lps.getPacketsSentObserverCallback(),
-		metric.WithDescription("Ping packets sent"),
-	)
-
-	_ = metric.Must(meter).NewFloat64GaugeObserver(
-		packetsLossMetricName,
-		lps.getPacketLossObserverCallback(),
-		metric.WithDescription("Ping packet loss"),
+		successfulProbesMetricName,
+		lps.getSuccessfulProbesObserverCallback(),
+		metric.WithDescription("Ping successful probes"),
 	)
 
 	_ = metric.Must(meter).NewInt64GaugeObserver(
-		packetsRecvMetricName,
-		lps.getPacketsRecvObserverCallback(),
-		metric.WithDescription("Ping packets received"),
-	)
-
-	_ = metric.Must(meter).NewInt64GaugeObserver(
-		packetsRecvDuplicatesMetricName,
-		lps.getPacketsRecvDuplicatesObserverCallback(),
-		metric.WithDescription("Ping packets received duplicates"),
+		probesFailedMetricName,
+		lps.getProbesFailedObserverCallback(),
+		metric.WithDescription("Ping probes failed"),
 	)
 
 	return nil
 }
 
-func run() error {
-	logzioPingStats, err := newLogzioPingStatistics()
+func run(ctx context.Context) error {
+	logzioPingStats, err := newLogzioPingStatistics(ctx)
 	if err != nil {
 		return fmt.Errorf("error creating logzioPingStatistics instance: %v", err)
 	}
 
-	if err = logzioPingStats.getPingsStatistics(); err != nil {
-		return fmt.Errorf("error creating pings statistics: %v", err)
+	if err = logzioPingStats.getAllAddressesPingStatistics(); err != nil {
+		return fmt.Errorf("error getting all addresses ping statistics: %v", err)
 	}
 
 	if err = logzioPingStats.collectMetrics(); err != nil {
@@ -344,12 +329,51 @@ func handleErr(err error) {
 	}
 }
 
-func main() {
+func getAddresses(addressesString string) []string {
+	addresses := strings.Split(addressesString, ",")
+	re := regexp.MustCompile(":[0-9]+$")
+
+	for index, address := range addresses {
+		if strings.Contains(address, addressHttpsPrefix) {
+			addresses[index] = strings.Replace(address, addressHttpsPrefix, "", 1)
+		}
+
+		if strings.Contains(address, addressHttpPrefix) {
+			addresses[index] = strings.Replace(address, addressHttpPrefix, "", 1)
+		}
+
+		if re.FindStringSubmatch(address) == nil {
+			addresses[index] = address + addressSuffixDefaultPort
+		}
+	}
+
+	return addresses
+}
+
+func getNumberEnvValue(envValue string, envName string) (*int, error) {
+	numberEnvValue, err := strconv.Atoi(envValue)
+	if err != nil {
+		return nil, fmt.Errorf("%s must be a number", envName)
+	}
+
+	if numberEnvValue < 1 {
+		return nil, fmt.Errorf("%s must be a positive number", envName)
+	}
+
+	return &numberEnvValue, nil
+}
+
+func HandleRequest(ctx context.Context) error {
 	infoLogger.Println("Starting to get ping statistics for all addresses...")
 
-	if err := run(); err != nil {
-		panic(err)
+	if err := run(ctx); err != nil {
+		return err
 	}
 
 	infoLogger.Println("The ping statistics have been sent to Logz.io successfully")
+	return nil
+}
+
+func main() {
+	lambda.Start(HandleRequest)
 }
