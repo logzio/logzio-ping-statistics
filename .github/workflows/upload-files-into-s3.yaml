@@ -13,10 +13,9 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: '1.x'
-      - name: Build, set capabilities to binary file and zip
+      - name: Build and zip binary file
         run: |
           GOOS=linux go build -o bootstrap main.go
-          sudo setcap cap_net_raw=+ep ./bootstrap
           zip function.zip ./bootstrap
           cp function.zip ./aws
       - name: Upload files into S3 bucket

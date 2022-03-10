@@ -4,20 +4,26 @@ Parameters:
   Addresses:
     Type: String
     Description: >-
-      The addresses to ping. Must be separated by comma.
+      The addresses to ping. You can add port for each address (default port for address is 80).
+      Addresses must be separated by comma.
     MinLength: 1
   PingCount:
     Type: Number
     Description: >-
-      The number of packets to send and receive for each address. Must be between 1 and 25 (inclusive).
+      The number of pings for each address.
     Default: 3
     MinValue: 1
-    MaxValue: 25
   PingInterval:
     Type: Number
     Description: >-
-      The time to wait (seconds) between each packet send. Must be 1 or higher number.
+      The time to wait (seconds) between each ping.
     Default: 1
+    MinValue: 1
+  PingTimeout:
+    Type: Number
+    Description: >-
+      The timeout (seconds) for each ping.
+    Default: 10
     MinValue: 1
   LogzioMetricsListener:
     Type: String
@@ -134,6 +140,7 @@ Resources:
           ADDRESSES: !Ref Addresses
           PING_COUNT: !Ref PingCount
           PING_INTERVAL: !Ref PingInterval
+          PING_TIMEOUT: !Ref PingTimeout
           LOGZIO_METRICS_LISTENER: !Ref LogzioMetricsListener
           LOGZIO_METRICS_TOKEN: !Ref LogzioMetricsToken
           LOGZIO_LISTENER: !Ref LogzioMetricsListener
