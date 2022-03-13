@@ -85,7 +85,7 @@ Resources:
           PING_TIMEOUT: !Ref PingTimeout
           LOGZIO_METRICS_LISTENER: !Join
             - ''
-            - - !Ref LogzioMetricsListener
+            - - !Ref LogzioListener
               - ':8053'
           LOGZIO_METRICS_TOKEN: !Ref LogzioMetricsToken
           LOGZIO_LISTENER: !Join
