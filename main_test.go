@@ -16,7 +16,7 @@ import (
 )
 
 func TestNewLogzioPingStatistics_Success(t *testing.T) {
-	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053")
+	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053,tcp://www.nytimes.com")
 	require.NoError(t, err)
 
 	err = os.Setenv(pingCountEnvName, "10")
@@ -38,7 +38,7 @@ func TestNewLogzioPingStatistics_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, logzioPingStats)
 
-	assert.Equal(t, []string{"www.google.com:80", "listener.logz.io:8053"}, logzioPingStats.addresses)
+	assert.Equal(t, []string{"www.google.com:80", "listener.logz.io:8053", "www.nytimes.com:80"}, logzioPingStats.addresses)
 	assert.Equal(t, 10, logzioPingStats.pingCount)
 	assert.Equal(t, 1*time.Second, logzioPingStats.pingInterval)
 	assert.Equal(t, 10*time.Second, logzioPingStats.pingTimeout)
@@ -71,7 +71,7 @@ func TestNewLogzioPingStatistics_NoAddress(t *testing.T) {
 }
 
 func TestNewLogzioPingStatistics_NoPingCount(t *testing.T) {
-	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053")
+	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053,tcp://www.nytimes.com")
 	require.NoError(t, err)
 
 	err = os.Setenv(pingIntervalEnvName, "1")
@@ -93,7 +93,7 @@ func TestNewLogzioPingStatistics_NoPingCount(t *testing.T) {
 }
 
 func TestNewLogzioPingStatistics_NoPingCountNumber(t *testing.T) {
-	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053")
+	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053,tcp://www.nytimes.com")
 	require.NoError(t, err)
 
 	err = os.Setenv(pingCountEnvName, "pingCount")
@@ -118,7 +118,7 @@ func TestNewLogzioPingStatistics_NoPingCountNumber(t *testing.T) {
 }
 
 func TestNewLogzioPingStatistics_NoPingCountPositiveNumber(t *testing.T) {
-	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053")
+	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053,tcp://www.nytimes.com")
 	require.NoError(t, err)
 
 	err = os.Setenv(pingCountEnvName, "0")
@@ -143,7 +143,7 @@ func TestNewLogzioPingStatistics_NoPingCountPositiveNumber(t *testing.T) {
 }
 
 func TestNewLogzioPingStatistics_NoPingInterval(t *testing.T) {
-	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053")
+	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053,tcp://www.nytimes.com")
 	require.NoError(t, err)
 
 	err = os.Setenv(pingCountEnvName, "10")
@@ -165,7 +165,7 @@ func TestNewLogzioPingStatistics_NoPingInterval(t *testing.T) {
 }
 
 func TestNewLogzioPingStatistics_NoPingIntervalNumber(t *testing.T) {
-	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053")
+	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053,tcp://www.nytimes.com")
 	require.NoError(t, err)
 
 	err = os.Setenv(pingCountEnvName, "10")
@@ -190,7 +190,7 @@ func TestNewLogzioPingStatistics_NoPingIntervalNumber(t *testing.T) {
 }
 
 func TestNewLogzioPingStatistics_NoPingIntervalPositiveNumber(t *testing.T) {
-	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053")
+	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053,tcp://www.nytimes.com")
 	require.NoError(t, err)
 
 	err = os.Setenv(pingCountEnvName, "10")
@@ -215,7 +215,7 @@ func TestNewLogzioPingStatistics_NoPingIntervalPositiveNumber(t *testing.T) {
 }
 
 func TestNewLogzioPingStatistics_NoPingTimeout(t *testing.T) {
-	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053")
+	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053,tcp://www.nytimes.com")
 	require.NoError(t, err)
 
 	err = os.Setenv(pingCountEnvName, "10")
@@ -237,7 +237,7 @@ func TestNewLogzioPingStatistics_NoPingTimeout(t *testing.T) {
 }
 
 func TestNewLogzioPingStatistics_NoPingTimeoutNumber(t *testing.T) {
-	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053")
+	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053,tcp://www.nytimes.com")
 	require.NoError(t, err)
 
 	err = os.Setenv(pingCountEnvName, "10")
@@ -262,7 +262,7 @@ func TestNewLogzioPingStatistics_NoPingTimeoutNumber(t *testing.T) {
 }
 
 func TestNewLogzioPingStatistics_NoPingTimeoutPositiveNumber(t *testing.T) {
-	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053")
+	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053,tcp://www.nytimes.com")
 	require.NoError(t, err)
 
 	err = os.Setenv(pingCountEnvName, "10")
@@ -287,7 +287,7 @@ func TestNewLogzioPingStatistics_NoPingTimeoutPositiveNumber(t *testing.T) {
 }
 
 func TestNewLogzioPingStatistics_NoLogzioMetricsListener(t *testing.T) {
-	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053")
+	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053,tcp://www.nytimes.com")
 	require.NoError(t, err)
 
 	err = os.Setenv(pingCountEnvName, "10")
@@ -306,7 +306,7 @@ func TestNewLogzioPingStatistics_NoLogzioMetricsListener(t *testing.T) {
 }
 
 func TestNewLogzioPingStatistics_NoLogzioMetricsToken(t *testing.T) {
-	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053")
+	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053,tcp://www.nytimes.com")
 	require.NoError(t, err)
 
 	err = os.Setenv(pingCountEnvName, "10")

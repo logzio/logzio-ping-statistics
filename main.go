@@ -31,6 +31,7 @@ const (
 	awsLambdaFunctionNameEnvName = "AWS_LAMBDA_FUNCTION_NAME"
 	addressHttpsPrefix           = "https://"
 	addressHttpPrefix            = "http://"
+	addressTcpPrefix			 = "tcp://"
 	addressSuffixDefaultPort     = ":80"
 	meterName                    = "ping_stats"
 	rttMetricName                = meterName + "_rtt"
@@ -333,17 +334,19 @@ func getAddresses(addressesString string) []string {
 	addresses := strings.Split(addressesString, ",")
 	re := regexp.MustCompile(":[0-9]+$")
 
-	for index, address := range addresses {
-		if strings.Contains(address, addressHttpsPrefix) {
-			addresses[index] = strings.Replace(address, addressHttpsPrefix, "", 1)
+	for index := 0; index < len(addresses); index++ {
+		addresses[index] = strings.Replace(addresses[index], " ", "", -1)
+
+		if strings.Contains(addresses[index], addressHttpsPrefix) {
+			addresses[index] = strings.Replace(addresses[index], addressHttpsPrefix, "", 1)
+		} else if strings.Contains(addresses[index], addressHttpPrefix) {
+			addresses[index] = strings.Replace(addresses[index], addressHttpPrefix, "", 1)
+		} else if strings.Contains(addresses[index], addressTcpPrefix) {
+			addresses[index] = strings.Replace(addresses[index], addressTcpPrefix, "", 1)
 		}
 
-		if strings.Contains(address, addressHttpPrefix) {
-			addresses[index] = strings.Replace(address, addressHttpPrefix, "", 1)
-		}
-
-		if re.FindStringSubmatch(address) == nil {
-			addresses[index] = address + addressSuffixDefaultPort
+		if re.FindStringSubmatch(addresses[index]) == nil {
+			addresses[index] = addresses[index] + addressSuffixDefaultPort
 		}
 	}
 
