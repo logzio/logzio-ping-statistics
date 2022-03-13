@@ -15,21 +15,14 @@ To start just press the button and follow the instructions:
 
 | Parameter | Description | Required/Optional | Default |
 | --- | --- | --- | --- |
-| Address | The addresses to ping. You can add port for each address (default port for address is 80). Addresses must be separated by comma. | Required | - |
+| Addresses | The addresses to ping. You can add port for each address (default port for address is 80). Addresses must be separated by comma. (Example addresses: `www.google.com`, `tcp://www.google.com`, `https://www.google.com`, `http://www.google.com`). | Required | - |
 | PingCount | The number of pings for each address. | Required | `3` |
 | PingInterval | The time to wait (seconds) between each ping. | Required | `1 (second)` |
 | PingTimeout | The timeout (seconds) for each ping. | Required | `10 (seconds)` |
-| LogzioMetricsListener | The Logz.io metrics listener URL for your region. (For more details, see the regions page: https://docs.logz.io/user-guide/accounts/account-region.html) | Required | `https://listener.logz.io:8053` |
+| LogzioListener | The Logz.io listener URL for your region. (For more details, see the regions page: https://docs.logz.io/user-guide/accounts/account-region.html) | Required | `https://listener.logz.io` |
 | LogzioMetricsToken | Your Logz.io metrics token (Can be retrieved from the Manage Token page). | Required | - |
-| CloudWatchEventScheduleExpression | The scheduling expression that determines when and how often the Lambda function runs. | Required | `rate(30 minutes)` |
-| LogzioLogsListener | The Logz.io logs listener URL for your region. (For more details, see the regions page: https://docs.logz.io/user-guide/accounts/account-region.html) | Required | `https://listener.logz.io:8071` |
 | LogzioLogsToken | Your Logz.io logs token (Can be retrieved from the Manage Token page). | Required | - |
-| LogsExtensionLogLevel | Log level of the extension. Can be set to one of the following: debug, info, warn, error, fatal, panic | Required | `info` |
-| EnableExtensionInnerLogs | Set to true if you wish the extension inner logs will be shipped to your Logz.io account. | Required | `false` |
-| EnablePlatformLogs | The platform log captures runtime or execution environment errors. Set to true if you wish the platform logs will be shipped to your Logz.io account. | Required | `false` |
-| GrokPatters | Must be set with LogsFormat. Use this if you want to parse your logs into fields. A minified JSON list that contains the field name and the regex that will match the field. | Optional | - |
-| LogsFormat | Must be set with GrokPatters. Use this if you want to parse your logs into fields. The format in which the logs will appear, in accordance to grok conventions. | Optional | - |
-| LogsCustomFields | Include additional fields with every message sent, formatted as fieldName1=fieldValue1;fieldName2=fieldValue2 (NO SPACES). A custom key that clashes with a key from the log itself will be ignored. | Optional | - |
+| SchedulingInterval | The scheduling expression that determines when and how often the Lambda function runs. | Required | `rate(30 minutes)` |
 
 ## Searching in Logz.io
 
