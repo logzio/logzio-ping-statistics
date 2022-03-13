@@ -6,6 +6,7 @@ Parameters:
     Description: >-
       The addresses to ping. You can add port for each address (default port for address is 80).
       Addresses must be separated by comma.
+      (Example addresses: `www.google.com`, `tcp://www.google.com`, `https://www.google.com`, `http://www.google.com`).
     MinLength: 1
   PingCount:
     Type: Number
@@ -25,26 +26,31 @@ Parameters:
       The timeout (seconds) for each ping.
     Default: 10
     MinValue: 1
-  LogzioMetricsListener:
+  LogzioListener:
     Type: String
     Description: >-
-      The Logz.io metrics listener URL for your region. (For more details, see the regions page:
+      The Logz.io listener URL for your region. (For more details, see the regions page:
       https://docs.logz.io/user-guide/accounts/account-region.html)
-    Default: 'https://listener.logz.io:8053'
+    Default: 'https://listener.logz.io'
     AllowedValues:
-      - 'https://listener.logz.io:8053'
-      - 'https://listener-au.logz.io:8053'
-      - 'https://listener-ca.logz.io:8053'
-      - 'https://listener-eu.logz.io:8053'
-      - 'https://listener-nl.logz.io:8053'
-      - 'https://listener-uk.logz.io:8053'
-      - 'https://listener-wa.logz.io:8053'
+      - 'https://listener.logz.io'
+      - 'https://listener-au.logz.io'
+      - 'https://listener-ca.logz.io'
+      - 'https://listener-eu.logz.io'
+      - 'https://listener-nl.logz.io'
+      - 'https://listener-uk.logz.io'
+      - 'https://listener-wa.logz.io'
   LogzioMetricsToken:
     Type: String
     Description: >-
       Your Logz.io metrics token (Can be retrieved from the Manage Token page).
     MinLength: 1
-  CloudWatchEventScheduleExpression:
+  LogzioLogsToken:
+    Type: String
+    Description: >-
+      Your Logz.io logs token (Can be retrieved from the Manage Token page).
+    MinLength: 1
+  SchedulingInterval:
     Type: String
     Description: >-
       The scheduling expression that determines when and how often the Lambda
@@ -52,70 +58,6 @@ Parameters:
     Default: rate(30 minutes)
     MinLength: 1
     MaxLength: 256
-  LogzioLogsListener:
-    Type: String
-    Description: >-
-      The Logz.io logs listener URL for your region. (For more details, see the regions page:
-      https://docs.logz.io/user-guide/accounts/account-region.html)
-    Default: 'https://listener.logz.io:8071'
-    AllowedValues:
-      - 'https://listener.logz.io:8071'
-      - 'https://listener-au.logz.io:8071'
-      - 'https://listener-ca.logz.io:8071'
-      - 'https://listener-eu.logz.io:8071'
-      - 'https://listener-nl.logz.io:8071'
-      - 'https://listener-uk.logz.io:8071'
-      - 'https://listener-wa.logz.io:8071'
-  LogzioLogsToken:
-    Type: String
-    Description: >-
-      Your Logz.io logs token (Can be retrieved from the Manage Token page).
-    MinLength: 1
-  LogsExtensionLogLevel:
-    Type: String
-    Description: >-
-      Log level of the extension.
-    Default: info
-    AllowedValues:
-      - debug
-      - info
-      - warn
-      - error
-      - fatal
-      - panic
-  EnableExtensionInnerLogs:
-    Type: String
-    Description: >-
-      Set to true if you wish the extension inner logs will be shipped to your Logz.io account.
-    Default: false
-    AllowedValues:
-      - false
-      - true
-  EnablePlatformLogs:
-    Type: String
-    Description: >-
-      The platform log captures runtime or execution environment errors.
-      Set to true if you wish the platform logs will be shipped to your Logz.io account.
-    Default: false
-    AllowedValues:
-      - false
-      - true
-  GrokPatters:
-    Type: String
-    Description: >-
-      Must be set with LogsFormat. Use this if you want to parse your logs into fields.
-      A minified JSON list that contains the field name and the regex that will match the field. (optional).
-  LogsFormat:
-    Type: String
-    Description: >-
-      Must be set with GrokPatters. Use this if you want to parse your logs into fields.
-      The format in which the logs will appear, in accordance to grok conventions. (optional).
-  LogsCustomFields:
-    Type: String
-    Description: >-
-      Include additional fields with every message sent,
-      formatted as fieldName1=fieldValue1;fieldName2=fieldValue2 (NO SPACES).
-      A custom key that clashes with a key from the log itself will be ignored. (optional).
 Resources:
   LambdaFunction:
     Type: 'AWS::Lambda::Function'
@@ -141,16 +83,22 @@ Resources:
           PING_COUNT: !Ref PingCount
           PING_INTERVAL: !Ref PingInterval
           PING_TIMEOUT: !Ref PingTimeout
-          LOGZIO_METRICS_LISTENER: !Ref LogzioMetricsListener
+          LOGZIO_METRICS_LISTENER: !Join
+            - ''
+            - - !Ref LogzioMetricsListener
+              - ':8053'
           LOGZIO_METRICS_TOKEN: !Ref LogzioMetricsToken
-          LOGZIO_LISTENER: !Ref LogzioMetricsListener
+          LOGZIO_LISTENER: !Join
+            - ''
+            - - !Ref LogzioListener
+              - ':8071'
           LOGZIO_LOGS_TOKEN: !Ref LogzioLogsToken
-          LOGS_EXT_LOG_LEVEL: !Ref LogsExtensionLogLevel
-          ENABLE_EXTENSION_LOGS: !Ref EnableExtensionInnerLogs
-          ENABLE_PLATFORM_LOGS: !Ref EnablePlatformLogs
-          GROK_PATTERNS: !Ref GrokPatters
-          LOGS_FORMAT: !Ref LogsFormat
-          CUSTOM_FIELDS: !Ref LogsCustomFields
+          LOGS_EXT_LOG_LEVEL: 'info'
+          ENABLE_EXTENSION_LOGS: 'false'
+          ENABLE_PLATFORM_LOGS: 'false'
+          GROK_PATTERNS: ''
+          LOGS_FORMAT: ''
+          CUSTOM_FIELDS: ''
   IAMRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -180,7 +128,7 @@ Resources:
     Type: 'AWS::Events::Rule'
     Properties:
       Name: logzio-ping-statistics
-      ScheduleExpression: !Ref CloudWatchEventScheduleExpression
+      ScheduleExpression: !Ref SchedulingInterval
       State: ENABLED
       Targets:
         - Arn: !GetAtt LambdaFunction.Arn
