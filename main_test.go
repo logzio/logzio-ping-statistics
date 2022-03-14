@@ -15,6 +15,46 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func getMetrics(request *http.Request) ([]map[string]interface{}, error) {
+	body, err := io.ReadAll(request.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func(body io.ReadCloser) {
+		if err = body.Close(); err != nil {
+			panic(err)
+		}
+
+	}(request.Body)
+
+	uncompressedBody, err := snappy.Decode(nil, body)
+	if err != nil {
+		return nil, err
+	}
+
+	writeRequest := &prompb.WriteRequest{}
+	if err = writeRequest.Unmarshal(uncompressedBody); err != nil {
+		return nil, err
+	}
+
+	metrics := make([]map[string]interface{}, 0)
+
+	for _, timeseries := range writeRequest.Timeseries {
+		metric := make(map[string]interface{})
+
+		metric["value"] = timeseries.Samples[0].Value
+
+		for _, label := range timeseries.Labels {
+			metric[label.Name] = label.Value
+		}
+
+		metrics = append(metrics, metric)
+	}
+
+	return metrics, nil
+}
+
 func TestNewLogzioPingStatistics_Success(t *testing.T) {
 	err := os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053,tcp://www.nytimes.com")
 	require.NoError(t, err)
@@ -402,63 +442,36 @@ func TestRun_Success(t *testing.T) {
 
 	httpmock.RegisterResponder("POST", "https://listener.logz.io:8053",
 		func(request *http.Request) (*http.Response, error) {
-			body, err := io.ReadAll(request.Body)
+			metrics, err := getMetrics(request)
 			require.NoError(t, err)
+			require.NotNil(t, metrics)
 
-			defer func(Body io.ReadCloser) {
-				err = Body.Close()
-				require.NoError(t, err)
-			}(request.Body)
+			assert.Len(t, metrics, 12)
 
-			uncompressedBody, err := snappy.Decode(nil, body)
-			require.NoError(t, err)
+			for _, metric := range metrics {
+				assert.Contains(t, []string{rttMetricName, probesSentMetricName, successfulProbesMetricName, probesFailedMetricName}, metric["__name__"])
 
-			writeRequest := &prompb.WriteRequest{}
-			err = writeRequest.Unmarshal(uncompressedBody)
-			require.NoError(t, err)
-
-			assert.Len(t, writeRequest.Timeseries, 12)
-
-			metricsToSend := make([]map[string]interface{}, 0)
-
-			for _, timeseries := range writeRequest.Timeseries {
-				metricToSend := make(map[string]interface{})
-
-				metricToSend["value"] = timeseries.Samples[0].Value
-
-				for _, label := range timeseries.Labels {
-					metricToSend[label.Name] = label.Value
+				if metric["__name__"] == rttMetricName {
+					assert.Len(t, metric, 9)
+					assert.NotEmpty(t, metric["value"])
+					assert.Contains(t, []string{"1", "2", "3"}, metric["rtt_index"])
+					assert.Equal(t, "3", metric["total_rtts"])
+					assert.Equal(t, "milliseconds", metric["unit"])
+				} else if metric["__name__"] == probesSentMetricName {
+					assert.Len(t, metric, 6)
+					assert.Equal(t, float64(3), metric["value"])
+				} else if metric["__name__"] == successfulProbesMetricName {
+					assert.Len(t, metric, 6)
+					assert.Equal(t, float64(3), metric["value"])
+				} else if metric["__name__"] == probesFailedMetricName {
+					assert.Len(t, metric, 6)
+					assert.Equal(t, float64(0), metric["value"])
 				}
 
-				metricsToSend = append(metricsToSend, metricToSend)
-			}
-
-			assert.Len(t, metricsToSend, 12)
-
-			for _, metricToSend := range metricsToSend {
-				assert.Contains(t, []string{rttMetricName, probesSentMetricName, successfulProbesMetricName, probesFailedMetricName}, metricToSend["__name__"])
-
-				if metricToSend["__name__"] == rttMetricName {
-					assert.Len(t, metricToSend, 9)
-					assert.NotEmpty(t, metricToSend["value"])
-					assert.Contains(t, []string{"1", "2", "3"}, metricToSend["rtt_index"])
-					assert.Equal(t, "3", metricToSend["total_rtts"])
-					assert.Equal(t, "milliseconds", metricToSend["unit"])
-				} else if metricToSend["__name__"] == probesSentMetricName {
-					assert.Len(t, metricToSend, 6)
-					assert.Equal(t, float64(3), metricToSend["value"])
-				} else if metricToSend["__name__"] == successfulProbesMetricName {
-					assert.Len(t, metricToSend, 6)
-					assert.Equal(t, float64(3), metricToSend["value"])
-				} else if metricToSend["__name__"] == probesFailedMetricName {
-					assert.Len(t, metricToSend, 6)
-					assert.Equal(t, float64(0), metricToSend["value"])
-				}
-
-				assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metricToSend["address"])
-				assert.NotEmpty(t, metricToSend["ip"])
-				assert.Equal(t, "us-east-1", metricToSend["aws_region"])
-				assert.Equal(t, "test", metricToSend["aws_lambda_function"])
+				assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metric["address"])
+				assert.NotEmpty(t, metric["ip"])
+				assert.Equal(t, "us-east-1", metric["aws_region"])
+				assert.Equal(t, "test", metric["aws_lambda_function"])
 			}
 
 			return httpmock.NewStringResponse(200, ""), nil
@@ -495,63 +508,36 @@ func TestCollectMetrics_Success(t *testing.T) {
 
 	httpmock.RegisterResponder("POST", "https://listener.logz.io:8053",
 		func(request *http.Request) (*http.Response, error) {
-			body, err := io.ReadAll(request.Body)
+			metrics, err := getMetrics(request)
 			require.NoError(t, err)
+			require.NotNil(t, metrics)
 
-			defer func(Body io.ReadCloser) {
-				err = Body.Close()
-				require.NoError(t, err)
-			}(request.Body)
+			assert.Len(t, metrics, 12)
 
-			uncompressedBody, err := snappy.Decode(nil, body)
-			require.NoError(t, err)
+			for _, metric := range metrics {
+				assert.Contains(t, []string{rttMetricName, probesSentMetricName, successfulProbesMetricName, probesFailedMetricName}, metric["__name__"])
 
-			writeRequest := &prompb.WriteRequest{}
-			err = writeRequest.Unmarshal(uncompressedBody)
-			require.NoError(t, err)
-
-			assert.Len(t, writeRequest.Timeseries, 12)
-
-			metricsToSend := make([]map[string]interface{}, 0)
-
-			for _, timeseries := range writeRequest.Timeseries {
-				metricToSend := make(map[string]interface{})
-
-				metricToSend["value"] = timeseries.Samples[0].Value
-
-				for _, label := range timeseries.Labels {
-					metricToSend[label.Name] = label.Value
+				if metric["__name__"] == rttMetricName {
+					assert.Len(t, metric, 9)
+					assert.NotEmpty(t, metric["value"])
+					assert.Contains(t, []string{"1", "2", "3"}, metric["rtt_index"])
+					assert.Equal(t, "3", metric["total_rtts"])
+					assert.Equal(t, "milliseconds", metric["unit"])
+				} else if metric["__name__"] == probesSentMetricName {
+					assert.Len(t, metric, 6)
+					assert.Equal(t, float64(3), metric["value"])
+				} else if metric["__name__"] == successfulProbesMetricName {
+					assert.Len(t, metric, 6)
+					assert.Equal(t, float64(3), metric["value"])
+				} else if metric["__name__"] == probesFailedMetricName {
+					assert.Len(t, metric, 6)
+					assert.Equal(t, float64(0), metric["value"])
 				}
 
-				metricsToSend = append(metricsToSend, metricToSend)
-			}
-
-			assert.Len(t, metricsToSend, 12)
-
-			for _, metricToSend := range metricsToSend {
-				assert.Contains(t, []string{rttMetricName, probesSentMetricName, successfulProbesMetricName, probesFailedMetricName}, metricToSend["__name__"])
-
-				if metricToSend["__name__"] == rttMetricName {
-					assert.Len(t, metricToSend, 9)
-					assert.NotEmpty(t, metricToSend["value"])
-					assert.Contains(t, []string{"1", "2", "3"}, metricToSend["rtt_index"])
-					assert.Equal(t, "3", metricToSend["total_rtts"])
-					assert.Equal(t, "milliseconds", metricToSend["unit"])
-				} else if metricToSend["__name__"] == probesSentMetricName {
-					assert.Len(t, metricToSend, 6)
-					assert.Equal(t, float64(3), metricToSend["value"])
-				} else if metricToSend["__name__"] == successfulProbesMetricName {
-					assert.Len(t, metricToSend, 6)
-					assert.Equal(t, float64(3), metricToSend["value"])
-				} else if metricToSend["__name__"] == probesFailedMetricName {
-					assert.Len(t, metricToSend, 6)
-					assert.Equal(t, float64(0), metricToSend["value"])
-				}
-
-				assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metricToSend["address"])
-				assert.NotEmpty(t, metricToSend["ip"])
-				assert.Equal(t, "us-east-1", metricToSend["aws_region"])
-				assert.Equal(t, "test", metricToSend["aws_lambda_function"])
+				assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metric["address"])
+				assert.NotEmpty(t, metric["ip"])
+				assert.Equal(t, "us-east-1", metric["aws_region"])
+				assert.Equal(t, "test", metric["aws_lambda_function"])
 			}
 
 			return httpmock.NewStringResponse(200, ""), nil
