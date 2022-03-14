@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"testing"
@@ -372,6 +372,104 @@ func TestCreateController_Success(t *testing.T) {
 	require.NotNil(t, cont)
 }
 
+func TestRun_Success(t *testing.T) {
+	err := os.Setenv(awsRegionEnvName, "us-east-1")
+	require.NoError(t, err)
+
+	err = os.Setenv(awsLambdaFunctionNameEnvName, "test")
+	require.NoError(t, err)
+
+	err = os.Setenv(addressesEnvName, "www.google.com,https://listener.logz.io:8053")
+	require.NoError(t, err)
+
+	err = os.Setenv(pingCountEnvName, "3")
+	require.NoError(t, err)
+
+	err = os.Setenv(pingIntervalEnvName, "1")
+	require.NoError(t, err)
+
+	err = os.Setenv(pingTimeoutEnvName, "10")
+	require.NoError(t, err)
+
+	err = os.Setenv(logzioMetricsListenerEnvName, "https://listener.logz.io:8053")
+	require.NoError(t, err)
+
+	err = os.Setenv(logzioMetricsTokenEnvName, "123456789a")
+	require.NoError(t, err)
+
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder("POST", "https://listener.logz.io:8053",
+		func(request *http.Request) (*http.Response, error) {
+			body, err := io.ReadAll(request.Body)
+			require.NoError(t, err)
+
+			defer func(Body io.ReadCloser) {
+				err = Body.Close()
+				require.NoError(t, err)
+			}(request.Body)
+
+			uncompressedBody, err := snappy.Decode(nil, body)
+			require.NoError(t, err)
+
+			writeRequest := &prompb.WriteRequest{}
+			err = writeRequest.Unmarshal(uncompressedBody)
+			require.NoError(t, err)
+
+			assert.Len(t, writeRequest.Timeseries, 12)
+
+			metricsToSend := make([]map[string]interface{}, 0)
+
+			for _, timeseries := range writeRequest.Timeseries {
+				metricToSend := make(map[string]interface{})
+
+				metricToSend["value"] = timeseries.Samples[0].Value
+
+				for _, label := range timeseries.Labels {
+					metricToSend[label.Name] = label.Value
+				}
+
+				metricsToSend = append(metricsToSend, metricToSend)
+			}
+
+			assert.Len(t, metricsToSend, 12)
+
+			for _, metricToSend := range metricsToSend {
+				assert.Contains(t, []string{rttMetricName, probesSentMetricName, successfulProbesMetricName, probesFailedMetricName}, metricToSend["__name__"])
+
+				if metricToSend["__name__"] == rttMetricName {
+					assert.Len(t, metricToSend, 9)
+					assert.NotEmpty(t, metricToSend["value"])
+					assert.Contains(t, []string{"1", "2", "3"}, metricToSend["rtt_index"])
+					assert.Equal(t, "3", metricToSend["total_rtts"])
+					assert.Equal(t, "milliseconds", metricToSend["unit"])
+				} else if metricToSend["__name__"] == probesSentMetricName {
+					assert.Len(t, metricToSend, 6)
+					assert.Equal(t, float64(3), metricToSend["value"])
+				} else if metricToSend["__name__"] == successfulProbesMetricName {
+					assert.Len(t, metricToSend, 6)
+					assert.Equal(t, float64(3), metricToSend["value"])
+				} else if metricToSend["__name__"] == probesFailedMetricName {
+					assert.Len(t, metricToSend, 6)
+					assert.Equal(t, float64(0), metricToSend["value"])
+				}
+
+				assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metricToSend["address"])
+				assert.NotEmpty(t, metricToSend["ip"])
+				assert.Equal(t, "us-east-1", metricToSend["aws_region"])
+				assert.Equal(t, "test", metricToSend["aws_lambda_function"])
+			}
+
+			return httpmock.NewStringResponse(200, ""), nil
+		})
+
+	err = run(context.Background())
+	require.NoError(t, err)
+
+	os.Clearenv()
+}
+
 func TestCollectMetrics_Success(t *testing.T) {
 	err := os.Setenv(awsRegionEnvName, "us-east-1")
 	require.NoError(t, err)
@@ -397,8 +495,13 @@ func TestCollectMetrics_Success(t *testing.T) {
 
 	httpmock.RegisterResponder("POST", "https://listener.logz.io:8053",
 		func(request *http.Request) (*http.Response, error) {
-			body, err := ioutil.ReadAll(request.Body)
+			body, err := io.ReadAll(request.Body)
 			require.NoError(t, err)
+
+			defer func(Body io.ReadCloser) {
+				err = Body.Close()
+				require.NoError(t, err)
+			}(request.Body)
 
 			uncompressedBody, err := snappy.Decode(nil, body)
 			require.NoError(t, err)
@@ -430,33 +533,23 @@ func TestCollectMetrics_Success(t *testing.T) {
 
 				if metricToSend["__name__"] == rttMetricName {
 					assert.Len(t, metricToSend, 9)
-
 					assert.NotEmpty(t, metricToSend["value"])
-					assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metricToSend["address"])
-					assert.NotEmpty(t, metricToSend["ip"])
 					assert.Contains(t, []string{"1", "2", "3"}, metricToSend["rtt_index"])
 					assert.Equal(t, "3", metricToSend["total_rtts"])
 					assert.Equal(t, "milliseconds", metricToSend["unit"])
 				} else if metricToSend["__name__"] == probesSentMetricName {
 					assert.Len(t, metricToSend, 6)
-
 					assert.Equal(t, float64(3), metricToSend["value"])
-					assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metricToSend["address"])
-					assert.NotEmpty(t, metricToSend["ip"])
 				} else if metricToSend["__name__"] == successfulProbesMetricName {
 					assert.Len(t, metricToSend, 6)
-
 					assert.Equal(t, float64(3), metricToSend["value"])
-					assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metricToSend["address"])
-					assert.NotEmpty(t, metricToSend["ip"])
 				} else if metricToSend["__name__"] == probesFailedMetricName {
 					assert.Len(t, metricToSend, 6)
-
 					assert.Equal(t, float64(0), metricToSend["value"])
-					assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metricToSend["address"])
-					assert.NotEmpty(t, metricToSend["ip"])
 				}
 
+				assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metricToSend["address"])
+				assert.NotEmpty(t, metricToSend["ip"])
 				assert.Equal(t, "us-east-1", metricToSend["aws_region"])
 				assert.Equal(t, "test", metricToSend["aws_lambda_function"])
 			}
@@ -468,105 +561,4 @@ func TestCollectMetrics_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	os.Clearenv()
-}
-
-func TestRun_Success(t *testing.T) {
-	err := os.Setenv(awsRegionEnvName, "us-east-1")
-	require.NoError(t, err)
-
-	err = os.Setenv(awsLambdaFunctionNameEnvName, "test")
-	require.NoError(t, err)
-
-	err = os.Setenv(addressesEnvName, "www.google.com,listener.logz.io:8053")
-	require.NoError(t, err)
-
-	err = os.Setenv(pingCountEnvName, "3")
-	require.NoError(t, err)
-
-	err = os.Setenv(pingIntervalEnvName, "1")
-	require.NoError(t, err)
-
-	err = os.Setenv(pingTimeoutEnvName, "10")
-	require.NoError(t, err)
-
-	err = os.Setenv(logzioMetricsListenerEnvName, "https://listener.logz.io:8053")
-	require.NoError(t, err)
-
-	err = os.Setenv(logzioMetricsTokenEnvName, "123456789a")
-	require.NoError(t, err)
-
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
-	httpmock.RegisterResponder("POST", "https://listener.logz.io:8053",
-		func(request *http.Request) (*http.Response, error) {
-			body, err := ioutil.ReadAll(request.Body)
-			require.NoError(t, err)
-
-			uncompressedBody, err := snappy.Decode(nil, body)
-			require.NoError(t, err)
-
-			writeRequest := &prompb.WriteRequest{}
-			err = writeRequest.Unmarshal(uncompressedBody)
-			require.NoError(t, err)
-
-			assert.Len(t, writeRequest.Timeseries, 12)
-
-			metricsToSend := make([]map[string]interface{}, 0)
-
-			for _, timeseries := range writeRequest.Timeseries {
-				metricToSend := make(map[string]interface{})
-
-				metricToSend["value"] = timeseries.Samples[0].Value
-
-				for _, label := range timeseries.Labels {
-					metricToSend[label.Name] = label.Value
-				}
-
-				metricsToSend = append(metricsToSend, metricToSend)
-			}
-
-			assert.Len(t, metricsToSend, 12)
-
-			for _, metricToSend := range metricsToSend {
-				assert.Contains(t, []string{rttMetricName, probesSentMetricName, successfulProbesMetricName, probesFailedMetricName}, metricToSend["__name__"])
-
-				if metricToSend["__name__"] == rttMetricName {
-					assert.Len(t, metricToSend, 9)
-
-					assert.NotEmpty(t, metricToSend["value"])
-					assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metricToSend["address"])
-					assert.NotEmpty(t, metricToSend["ip"])
-					assert.Contains(t, []string{"1", "2", "3"}, metricToSend["rtt_index"])
-					assert.Equal(t, "3", metricToSend["total_rtts"])
-					assert.Equal(t, "milliseconds", metricToSend["unit"])
-				} else if metricToSend["__name__"] == probesSentMetricName {
-					assert.Len(t, metricToSend, 6)
-
-					assert.Equal(t, float64(3), metricToSend["value"])
-					assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metricToSend["address"])
-					assert.NotEmpty(t, metricToSend["ip"])
-				} else if metricToSend["__name__"] == successfulProbesMetricName {
-					assert.Len(t, metricToSend, 6)
-
-					assert.Equal(t, float64(3), metricToSend["value"])
-					assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metricToSend["address"])
-					assert.NotEmpty(t, metricToSend["ip"])
-				} else if metricToSend["__name__"] == probesFailedMetricName {
-					assert.Len(t, metricToSend, 6)
-
-					assert.Equal(t, float64(0), metricToSend["value"])
-					assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metricToSend["address"])
-					assert.NotEmpty(t, metricToSend["ip"])
-				}
-
-				assert.Equal(t, "us-east-1", metricToSend["aws_region"])
-				assert.Equal(t, "test", metricToSend["aws_lambda_function"])
-			}
-
-			return httpmock.NewStringResponse(200, ""), nil
-		})
-
-	err = run(context.Background())
-	require.NoError(t, err)
 }
