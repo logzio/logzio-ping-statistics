@@ -2,15 +2,15 @@ package main
 
 import (
 	"context"
-	"github.com/golang/snappy"
-	"github.com/jarcoal/httpmock"
-	"github.com/prometheus/prometheus/prompb"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/golang/snappy"
+	"github.com/jarcoal/httpmock"
+	"github.com/prometheus/prometheus/prompb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
