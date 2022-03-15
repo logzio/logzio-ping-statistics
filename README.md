@@ -26,4 +26,4 @@ To start just press the button and follow the instructions:
 
 ## Searching in Logz.io
 
-All metrics that were sent from the lambda function will have the prefix `ping_stats` in their name. 
+All metrics that were sent from the Lambda function will have the prefix `ping_stats` in their name. 
