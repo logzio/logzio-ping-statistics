@@ -391,7 +391,7 @@ func TestGetAllAddressesPingStatistics_Success(t *testing.T) {
 		assert.Equal(t, 10, pingStats.probesSent)
 		assert.Equal(t, 10, pingStats.successfulProbes)
 		assert.Equal(t, 0, pingStats.probesFailed)
-		assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, pingStats.address)
+		assert.Contains(t, logzioPingStats.addresses, pingStats.address)
 		assert.NotEmpty(t, pingStats.addressIP)
 	}
 }
@@ -449,9 +449,9 @@ func TestCollectMetrics_Success(t *testing.T) {
 				if metric["__name__"] == rttMetricName {
 					assert.Len(t, metric, 9)
 					assert.NotEmpty(t, metric["value"])
-					assert.Contains(t, []string{"1", "2", "3"}, metric["rtt_index"])
-					assert.Equal(t, "3", metric["total_rtts"])
-					assert.Equal(t, "milliseconds", metric["unit"])
+					assert.Contains(t, []string{"1", "2", "3"}, metric[rttMetricRttIndexLabelName])
+					assert.Equal(t, "3", metric[rttMetricTotalRttsLabelName])
+					assert.Equal(t, rttMetricUnitLabelValue, metric[unitLabelName])
 				} else if metric["__name__"] == probesSentMetricName {
 					assert.Len(t, metric, 6)
 					assert.Equal(t, float64(3), metric["value"])
@@ -463,10 +463,10 @@ func TestCollectMetrics_Success(t *testing.T) {
 					assert.Equal(t, float64(0), metric["value"])
 				}
 
-				assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metric["address"])
-				assert.NotEmpty(t, metric["ip"])
-				assert.Equal(t, "us-east-1", metric["aws_region"])
-				assert.Equal(t, "test", metric["aws_lambda_function"])
+				assert.Contains(t, logzioPingStats.addresses, metric[addressLabelName])
+				assert.NotEmpty(t, metric[ipLabelName])
+				assert.Equal(t, "us-east-1", metric[awsRegionLabelName])
+				assert.Equal(t, "test", metric[awsLambdaFunctionLabelName])
 			}
 
 			return httpmock.NewStringResponse(200, ""), nil
@@ -520,9 +520,9 @@ func TestRun_Success(t *testing.T) {
 				if metric["__name__"] == rttMetricName {
 					assert.Len(t, metric, 9)
 					assert.NotEmpty(t, metric["value"])
-					assert.Contains(t, []string{"1", "2", "3"}, metric["rtt_index"])
-					assert.Equal(t, "3", metric["total_rtts"])
-					assert.Equal(t, "milliseconds", metric["unit"])
+					assert.Contains(t, []string{"1", "2", "3"}, metric[rttMetricRttIndexLabelName])
+					assert.Equal(t, "3", metric[rttMetricTotalRttsLabelName])
+					assert.Equal(t, rttMetricUnitLabelValue, metric[unitLabelName])
 				} else if metric["__name__"] == probesSentMetricName {
 					assert.Len(t, metric, 6)
 					assert.Equal(t, float64(3), metric["value"])
@@ -534,10 +534,10 @@ func TestRun_Success(t *testing.T) {
 					assert.Equal(t, float64(0), metric["value"])
 				}
 
-				assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metric["address"])
-				assert.NotEmpty(t, metric["ip"])
-				assert.Equal(t, "us-east-1", metric["aws_region"])
-				assert.Equal(t, "test", metric["aws_lambda_function"])
+				assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metric[addressLabelName])
+				assert.NotEmpty(t, metric[ipLabelName])
+				assert.Equal(t, "us-east-1", metric[awsRegionLabelName])
+				assert.Equal(t, "test", metric[awsLambdaFunctionLabelName])
 			}
 
 			return httpmock.NewStringResponse(200, ""), nil

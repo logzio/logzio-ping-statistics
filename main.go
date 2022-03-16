@@ -31,13 +31,21 @@ const (
 	awsLambdaFunctionNameEnvName = "AWS_LAMBDA_FUNCTION_NAME"
 	addressHttpsPrefix           = "https://"
 	addressHttpPrefix            = "http://"
-	addressTcpPrefix			 = "tcp://"
+	addressTcpPrefix             = "tcp://"
 	addressSuffixDefaultPort     = ":80"
 	meterName                    = "ping_stats"
 	rttMetricName                = meterName + "_rtt"
 	probesSentMetricName         = meterName + "_probes_sent"
 	successfulProbesMetricName   = meterName + "_successful_probes"
 	probesFailedMetricName       = meterName + "_probes_failed"
+	awsRegionLabelName           = "aws_region"
+	awsLambdaFunctionLabelName   = "aws_lambda_function"
+	addressLabelName             = "address"
+	ipLabelName                  = "ip"
+	unitLabelName                = "unit"
+	rttMetricRttIndexLabelName   = "rtt_index"
+	rttMetricTotalRttsLabelName  = "total_rtts"
+	rttMetricUnitLabelValue      = "milliseconds"
 )
 
 var (
@@ -161,32 +169,15 @@ func (lps *logzioPingStatistics) getAddressPingStatistics(address string) (*ping
 func (lps *logzioPingStatistics) getAllAddressesPingStatistics() error {
 	debugLogger.Println("Getting ping statistics for all addresses...")
 
-	//var mu sync.Mutex
-	//pingStatsChan := make(chan *pingStatistics)
-	//defer close(pingStatsChan)
-
 	for _, address := range lps.addresses {
-		//go func(address string) {
-			//mu.Lock()
-			pingStats, err := lps.getAddressPingStatistics(address)
-			//mu.Unlock()
-			if err != nil {
-				errorLogger.Println("Error getting ping statistics for address", address, ":", err)
-				//pingStatsChan <- nil
-				//return
-				continue
-			}
+		pingStats, err := lps.getAddressPingStatistics(address)
+		if err != nil {
+			errorLogger.Println("Error getting ping statistics for address", address, ":", err)
+			continue
+		}
 
 		lps.pingsStats = append(lps.pingsStats, pingStats)
-			//pingStatsChan <- pingStats
-		//}(address)
 	}
-
-	/*for range lps.addresses {
-		if pingStats := <-pingStatsChan; pingStats != nil {
-			lps.pingsStats = append(lps.pingsStats, pingStats)
-		}
-	}*/
 
 	if len(lps.pingsStats) == 0 {
 		return fmt.Errorf("did not get ping statistics for any given address")
@@ -210,8 +201,8 @@ func (lps *logzioPingStatistics) createController() (*controller.Controller, err
 		controller.WithResource(
 			resource.NewWithAttributes(
 				semconv.SchemaURL,
-				attribute.String("aws_region", os.Getenv(awsRegionEnvName)),
-				attribute.String("aws_lambda_function", os.Getenv(awsLambdaFunctionNameEnvName)),
+				attribute.String(awsRegionLabelName, os.Getenv(awsRegionEnvName)),
+				attribute.String(awsLambdaFunctionLabelName, os.Getenv(awsLambdaFunctionNameEnvName)),
 			),
 		),
 	)
@@ -224,11 +215,11 @@ func (lps *logzioPingStatistics) getRttObserverCallback() func(context.Context, 
 		for _, pingStats := range lps.pingsStats {
 			for index, rtt := range pingStats.rtts {
 				result.Observe(rtt,
-					attribute.String("address", pingStats.address),
-					attribute.String("ip", pingStats.addressIP),
-					attribute.Int("rtt_index", index+1),
-					attribute.Int("total_rtts", len(pingStats.rtts)),
-					attribute.String("unit", "milliseconds"),
+					attribute.String(addressLabelName, pingStats.address),
+					attribute.String(ipLabelName, pingStats.addressIP),
+					attribute.Int(rttMetricRttIndexLabelName, index+1),
+					attribute.Int(rttMetricTotalRttsLabelName, len(pingStats.rtts)),
+					attribute.String(unitLabelName, rttMetricUnitLabelValue),
 				)
 			}
 		}
@@ -241,8 +232,8 @@ func (lps *logzioPingStatistics) getProbesSentObserverCallback() func(context.Co
 
 		for _, pingStats := range lps.pingsStats {
 			result.Observe(int64(pingStats.probesSent),
-				attribute.String("address", pingStats.address),
-				attribute.String("ip", pingStats.addressIP))
+				attribute.String(addressLabelName, pingStats.address),
+				attribute.String(ipLabelName, pingStats.addressIP))
 		}
 	}
 }
@@ -253,8 +244,8 @@ func (lps *logzioPingStatistics) getSuccessfulProbesObserverCallback() func(cont
 
 		for _, pingStats := range lps.pingsStats {
 			result.Observe(int64(pingStats.successfulProbes),
-				attribute.String("address", pingStats.address),
-				attribute.String("ip", pingStats.addressIP))
+				attribute.String(addressLabelName, pingStats.address),
+				attribute.String(ipLabelName, pingStats.addressIP))
 		}
 	}
 }
@@ -265,8 +256,8 @@ func (lps *logzioPingStatistics) getProbesFailedObserverCallback() func(context.
 
 		for _, pingStats := range lps.pingsStats {
 			result.Observe(int64(pingStats.probesFailed),
-				attribute.String("address", pingStats.address),
-				attribute.String("ip", pingStats.addressIP))
+				attribute.String(addressLabelName, pingStats.address),
+				attribute.String(ipLabelName, pingStats.addressIP))
 		}
 	}
 }
