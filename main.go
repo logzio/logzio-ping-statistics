@@ -161,27 +161,32 @@ func (lps *logzioPingStatistics) getAddressPingStatistics(address string) (*ping
 func (lps *logzioPingStatistics) getAllAddressesPingStatistics() error {
 	debugLogger.Println("Getting ping statistics for all addresses...")
 
-	pingStatsChan := make(chan *pingStatistics)
-	defer close(pingStatsChan)
+	//var mu sync.Mutex
+	//pingStatsChan := make(chan *pingStatistics)
+	//defer close(pingStatsChan)
 
 	for _, address := range lps.addresses {
-		go func(address string) {
+		//go func(address string) {
+			//mu.Lock()
 			pingStats, err := lps.getAddressPingStatistics(address)
+			//mu.Unlock()
 			if err != nil {
 				errorLogger.Println("Error getting ping statistics for address", address, ":", err)
-				pingStatsChan <- nil
-				return
+				//pingStatsChan <- nil
+				//return
+				continue
 			}
 
-			pingStatsChan <- pingStats
-		}(address)
+		lps.pingsStats = append(lps.pingsStats, pingStats)
+			//pingStatsChan <- pingStats
+		//}(address)
 	}
 
-	for range lps.addresses {
+	/*for range lps.addresses {
 		if pingStats := <-pingStatsChan; pingStats != nil {
 			lps.pingsStats = append(lps.pingsStats, pingStats)
 		}
-	}
+	}*/
 
 	if len(lps.pingsStats) == 0 {
 		return fmt.Errorf("did not get ping statistics for any given address")

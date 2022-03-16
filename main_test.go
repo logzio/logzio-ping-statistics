@@ -412,6 +412,72 @@ func TestCreateController_Success(t *testing.T) {
 	require.NotNil(t, cont)
 }
 
+func TestCollectMetrics_Success(t *testing.T) {
+	err := os.Setenv(awsRegionEnvName, "us-east-1")
+	require.NoError(t, err)
+
+	err = os.Setenv(awsLambdaFunctionNameEnvName, "test")
+	require.NoError(t, err)
+
+	logzioPingStats := &logzioPingStatistics{
+		ctx:                   context.Background(),
+		logzioMetricsListener: "https://listener.logz.io:8053",
+		logzioMetricsToken:    "123456789a",
+		addresses:             []string{"www.google.com:80", "listener.logz.io:8053"},
+		pingCount:             3,
+		pingInterval:          1 * time.Second,
+		pingTimeout:           10 * time.Second,
+	}
+
+	err = logzioPingStats.getAllAddressesPingStatistics()
+	require.NoError(t, err)
+
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder("POST", "https://listener.logz.io:8053",
+		func(request *http.Request) (*http.Response, error) {
+			metrics, err := getMetrics(request)
+			require.NoError(t, err)
+			require.NotNil(t, metrics)
+
+			assert.Len(t, metrics, 12)
+
+			for _, metric := range metrics {
+				assert.Contains(t, []string{rttMetricName, probesSentMetricName, successfulProbesMetricName, probesFailedMetricName}, metric["__name__"])
+
+				if metric["__name__"] == rttMetricName {
+					assert.Len(t, metric, 9)
+					assert.NotEmpty(t, metric["value"])
+					assert.Contains(t, []string{"1", "2", "3"}, metric["rtt_index"])
+					assert.Equal(t, "3", metric["total_rtts"])
+					assert.Equal(t, "milliseconds", metric["unit"])
+				} else if metric["__name__"] == probesSentMetricName {
+					assert.Len(t, metric, 6)
+					assert.Equal(t, float64(3), metric["value"])
+				} else if metric["__name__"] == successfulProbesMetricName {
+					assert.Len(t, metric, 6)
+					assert.Equal(t, float64(3), metric["value"])
+				} else if metric["__name__"] == probesFailedMetricName {
+					assert.Len(t, metric, 6)
+					assert.Equal(t, float64(0), metric["value"])
+				}
+
+				assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metric["address"])
+				assert.NotEmpty(t, metric["ip"])
+				assert.Equal(t, "us-east-1", metric["aws_region"])
+				assert.Equal(t, "test", metric["aws_lambda_function"])
+			}
+
+			return httpmock.NewStringResponse(200, ""), nil
+		})
+
+	err = logzioPingStats.collectMetrics()
+	require.NoError(t, err)
+
+	os.Clearenv()
+}
+
 func TestRun_Success(t *testing.T) {
 	err := os.Setenv(awsRegionEnvName, "us-east-1")
 	require.NoError(t, err)
@@ -478,72 +544,6 @@ func TestRun_Success(t *testing.T) {
 		})
 
 	err = run(context.Background())
-	require.NoError(t, err)
-
-	os.Clearenv()
-}
-
-func TestCollectMetrics_Success(t *testing.T) {
-	err := os.Setenv(awsRegionEnvName, "us-east-1")
-	require.NoError(t, err)
-
-	err = os.Setenv(awsLambdaFunctionNameEnvName, "test")
-	require.NoError(t, err)
-
-	logzioPingStats := &logzioPingStatistics{
-		ctx:                   context.Background(),
-		logzioMetricsListener: "https://listener.logz.io:8053",
-		logzioMetricsToken:    "123456789a",
-		addresses:             []string{"www.google.com:80", "listener.logz.io:8053"},
-		pingCount:             3,
-		pingInterval:          1 * time.Second,
-		pingTimeout:           10 * time.Second,
-	}
-
-	err = logzioPingStats.getAllAddressesPingStatistics()
-	require.NoError(t, err)
-
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
-	httpmock.RegisterResponder("POST", "https://listener.logz.io:8053",
-		func(request *http.Request) (*http.Response, error) {
-			metrics, err := getMetrics(request)
-			require.NoError(t, err)
-			require.NotNil(t, metrics)
-
-			assert.Len(t, metrics, 12)
-
-			for _, metric := range metrics {
-				assert.Contains(t, []string{rttMetricName, probesSentMetricName, successfulProbesMetricName, probesFailedMetricName}, metric["__name__"])
-
-				if metric["__name__"] == rttMetricName {
-					assert.Len(t, metric, 9)
-					assert.NotEmpty(t, metric["value"])
-					assert.Contains(t, []string{"1", "2", "3"}, metric["rtt_index"])
-					assert.Equal(t, "3", metric["total_rtts"])
-					assert.Equal(t, "milliseconds", metric["unit"])
-				} else if metric["__name__"] == probesSentMetricName {
-					assert.Len(t, metric, 6)
-					assert.Equal(t, float64(3), metric["value"])
-				} else if metric["__name__"] == successfulProbesMetricName {
-					assert.Len(t, metric, 6)
-					assert.Equal(t, float64(3), metric["value"])
-				} else if metric["__name__"] == probesFailedMetricName {
-					assert.Len(t, metric, 6)
-					assert.Equal(t, float64(0), metric["value"])
-				}
-
-				assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metric["address"])
-				assert.NotEmpty(t, metric["ip"])
-				assert.Equal(t, "us-east-1", metric["aws_region"])
-				assert.Equal(t, "test", metric["aws_lambda_function"])
-			}
-
-			return httpmock.NewStringResponse(200, ""), nil
-		})
-
-	err = logzioPingStats.collectMetrics()
 	require.NoError(t, err)
 
 	os.Clearenv()
