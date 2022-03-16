@@ -435,7 +435,7 @@ func TestCollectMetrics_Success(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("POST", "https://listener.logz.io:8053",
+	httpmock.RegisterResponder(http.MethodPost, "https://listener.logz.io:8053",
 		func(request *http.Request) (*http.Response, error) {
 			metrics, err := getMetrics(request)
 			require.NoError(t, err)
@@ -469,7 +469,7 @@ func TestCollectMetrics_Success(t *testing.T) {
 				assert.Equal(t, "test", metric[awsLambdaFunctionLabelName])
 			}
 
-			return httpmock.NewStringResponse(200, ""), nil
+			return httpmock.NewStringResponse(http.StatusOK, ""), nil
 		})
 
 	err = logzioPingStats.collectMetrics()
@@ -506,7 +506,7 @@ func TestRun_Success(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("POST", "https://listener.logz.io:8053",
+	httpmock.RegisterResponder(http.MethodPost, "https://listener.logz.io:8053",
 		func(request *http.Request) (*http.Response, error) {
 			metrics, err := getMetrics(request)
 			require.NoError(t, err)
@@ -540,7 +540,7 @@ func TestRun_Success(t *testing.T) {
 				assert.Equal(t, "test", metric[awsLambdaFunctionLabelName])
 			}
 
-			return httpmock.NewStringResponse(200, ""), nil
+			return httpmock.NewStringResponse(http.StatusOK, ""), nil
 		})
 
 	err = run(context.Background())
