@@ -122,7 +122,8 @@ func (lps *logzioPingStatistics) getAddressPingStatistics(address string) (*ping
 
 	rtts := make([]float64, 0)
 	successfulProbes := 0
-
+	var addressIP string
+	
 	for count := 0; count < lps.pingCount; count++ {
 		time.Sleep(lps.pingInterval)
 
