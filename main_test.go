@@ -392,7 +392,6 @@ func TestGetAllAddressesPingStatistics_Success(t *testing.T) {
 		assert.Equal(t, 10, pingStats.successfulProbes)
 		assert.Equal(t, 0, pingStats.probesFailed)
 		assert.Contains(t, logzioPingStats.addresses, pingStats.address)
-		assert.NotEmpty(t, pingStats.addressIP)
 	}
 }
 
@@ -464,7 +463,6 @@ func TestCollectMetrics_Success(t *testing.T) {
 				}
 
 				assert.Contains(t, logzioPingStats.addresses, metric[addressLabelName])
-				assert.NotEmpty(t, metric[ipLabelName])
 				assert.Equal(t, "us-east-1", metric[awsRegionLabelName])
 				assert.Equal(t, "test", metric[awsLambdaFunctionLabelName])
 			}
@@ -535,7 +533,6 @@ func TestRun_Success(t *testing.T) {
 				}
 
 				assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metric[addressLabelName])
-				assert.NotEmpty(t, metric[ipLabelName])
 				assert.Equal(t, "us-east-1", metric[awsRegionLabelName])
 				assert.Equal(t, "test", metric[awsLambdaFunctionLabelName])
 			}
