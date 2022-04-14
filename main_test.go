@@ -446,19 +446,19 @@ func TestCollectMetrics_Success(t *testing.T) {
 				assert.Contains(t, []string{rttMetricName, probesSentMetricName, successfulProbesMetricName, probesFailedMetricName}, metric["__name__"])
 
 				if metric["__name__"] == rttMetricName {
-					assert.Len(t, metric, 9)
+					assert.Len(t, metric, 8)
 					assert.NotEmpty(t, metric["value"])
 					assert.Contains(t, []string{"1", "2", "3"}, metric[rttMetricRttIndexLabelName])
 					assert.Equal(t, "3", metric[rttMetricTotalRttsLabelName])
 					assert.Equal(t, rttMetricUnitLabelValue, metric[unitLabelName])
 				} else if metric["__name__"] == probesSentMetricName {
-					assert.Len(t, metric, 6)
+					assert.Len(t, metric, 5)
 					assert.Equal(t, float64(3), metric["value"])
 				} else if metric["__name__"] == successfulProbesMetricName {
-					assert.Len(t, metric, 6)
+					assert.Len(t, metric, 5)
 					assert.Equal(t, float64(3), metric["value"])
 				} else if metric["__name__"] == probesFailedMetricName {
-					assert.Len(t, metric, 6)
+					assert.Len(t, metric, 5)
 					assert.Equal(t, float64(0), metric["value"])
 				}
 
@@ -516,19 +516,19 @@ func TestRun_Success(t *testing.T) {
 				assert.Contains(t, []string{rttMetricName, probesSentMetricName, successfulProbesMetricName, probesFailedMetricName}, metric["__name__"])
 
 				if metric["__name__"] == rttMetricName {
-					assert.Len(t, metric, 9)
+					assert.Len(t, metric, 8)
 					assert.NotEmpty(t, metric["value"])
 					assert.Contains(t, []string{"1", "2", "3"}, metric[rttMetricRttIndexLabelName])
 					assert.Equal(t, "3", metric[rttMetricTotalRttsLabelName])
 					assert.Equal(t, rttMetricUnitLabelValue, metric[unitLabelName])
 				} else if metric["__name__"] == probesSentMetricName {
-					assert.Len(t, metric, 6)
+					assert.Len(t, metric, 5)
 					assert.Equal(t, float64(3), metric["value"])
 				} else if metric["__name__"] == successfulProbesMetricName {
-					assert.Len(t, metric, 6)
+					assert.Len(t, metric, 5)
 					assert.Equal(t, float64(3), metric["value"])
 				} else if metric["__name__"] == probesFailedMetricName {
-					assert.Len(t, metric, 6)
+					assert.Len(t, metric, 5)
 					assert.Equal(t, float64(0), metric["value"])
 				}
 
