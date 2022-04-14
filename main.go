@@ -223,7 +223,7 @@ func (lps *logzioPingStatistics) getProbesSentObserverCallback() func(context.Co
 
 		for _, pingStats := range lps.pingsStats {
 			result.Observe(int64(pingStats.probesSent),
-				       attribute.String(addressLabelName, pingStats.address))
+				attribute.String(addressLabelName, pingStats.address))
 		}
 	}
 }
@@ -234,7 +234,7 @@ func (lps *logzioPingStatistics) getSuccessfulProbesObserverCallback() func(cont
 
 		for _, pingStats := range lps.pingsStats {
 			result.Observe(int64(pingStats.successfulProbes),
-				       attribute.String(addressLabelName, pingStats.address))
+				attribute.String(addressLabelName, pingStats.address))
 		}
 	}
 }
@@ -245,7 +245,7 @@ func (lps *logzioPingStatistics) getProbesFailedObserverCallback() func(context.
 
 		for _, pingStats := range lps.pingsStats {
 			result.Observe(int64(pingStats.probesFailed),
-				       attribute.String(addressLabelName, pingStats.address))
+				attribute.String(addressLabelName, pingStats.address))
 		}
 	}
 }
