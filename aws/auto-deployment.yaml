@@ -64,7 +64,7 @@ Resources:
     Type: 'AWS::Lambda::Function'
     Properties:
       Code:
-        S3Bucket: shiran-rate-test
+        S3Bucket: logzio-aws-integrations-us-east-1
         S3Key: ping-statistics-auto-deployment/function.zip
       FunctionName: logzio-ping-statistics
       Description: >-

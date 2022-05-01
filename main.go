@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-lambda-go/cfn"
 	"github.com/aws/aws-lambda-go/lambda"
 	metricsExporter "github.com/logzio/go-metrics-sdk"
 	"go.opentelemetry.io/otel/attribute"
@@ -350,11 +351,26 @@ func getNumberEnvValue(envValue string, envName string) (*int, error) {
 	return &numberEnvValue, nil
 }
 
-func HandleRequest(ctx context.Context) error {
+// Wrapper for first invocation from cloud formation custom resource
+func customResourceRun(ctx context.Context, event cfn.Event) (physicalResourceID string, data map[string]interface{}, err error) {
+	if err = run(ctx); err != nil {
+		errorLogger.Printf("Error in first running: %s", err.Error())
+	}
+
+	return
+}
+
+func HandleRequest(ctx context.Context, event cfn.Event) error {
 	infoLogger.Println("Starting to get ping statistics for all addresses...")
 
-	if err := run(ctx); err != nil {
-		return err
+	// If requestID is empty - the lambda call is not from a custom resource
+	if event.RequestID == "" {
+		if err := run(ctx); err != nil {
+			return err
+		}
+	} else {
+		// Custom resource invocation
+		lambda.Start(cfn.LambdaWrap(customResourceRun))
 	}
 
 	infoLogger.Println("The ping statistics have been sent to Logz.io successfully")

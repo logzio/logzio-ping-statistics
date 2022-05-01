@@ -22,7 +22,7 @@ To start just press the button and follow the instructions:
 | LogzioListener | The Logz.io listener URL for your region. (For more details, see the regions page: https://docs.logz.io/user-guide/accounts/account-region.html) | Required | `https://listener.logz.io` |
 | LogzioMetricsToken | Your Logz.io metrics token (Can be retrieved from the Manage Token page). | Required | - |
 | LogzioLogsToken | Your Logz.io logs token (Can be retrieved from the Manage Token page). | Required | - |
-| SchedulingInterval | The scheduling expression that determines when and how often the Lambda function runs. | Required | `rate(30 minutes)` |
+| SchedulingInterval | The scheduling expression that determines when and how often the Lambda function runs. Rate below 6 minutes will cause the lambda to behave unexpectedly due to cold start and custom resource invocation. | Required | `rate(30 minutes)` |
 
 ## Searching in Logz.io
 
