@@ -392,7 +392,6 @@ func TestGetAllAddressesPingStatistics_Success(t *testing.T) {
 		assert.Equal(t, 10, pingStats.successfulProbes)
 		assert.Equal(t, 0, pingStats.probesFailed)
 		assert.Contains(t, logzioPingStats.addresses, pingStats.address)
-		assert.NotEmpty(t, pingStats.addressIP)
 	}
 }
 
@@ -447,24 +446,23 @@ func TestCollectMetrics_Success(t *testing.T) {
 				assert.Contains(t, []string{rttMetricName, probesSentMetricName, successfulProbesMetricName, probesFailedMetricName}, metric["__name__"])
 
 				if metric["__name__"] == rttMetricName {
-					assert.Len(t, metric, 9)
+					assert.Len(t, metric, 8)
 					assert.NotEmpty(t, metric["value"])
 					assert.Contains(t, []string{"1", "2", "3"}, metric[rttMetricRttIndexLabelName])
 					assert.Equal(t, "3", metric[rttMetricTotalRttsLabelName])
 					assert.Equal(t, rttMetricUnitLabelValue, metric[unitLabelName])
 				} else if metric["__name__"] == probesSentMetricName {
-					assert.Len(t, metric, 6)
+					assert.Len(t, metric, 5)
 					assert.Equal(t, float64(3), metric["value"])
 				} else if metric["__name__"] == successfulProbesMetricName {
-					assert.Len(t, metric, 6)
+					assert.Len(t, metric, 5)
 					assert.Equal(t, float64(3), metric["value"])
 				} else if metric["__name__"] == probesFailedMetricName {
-					assert.Len(t, metric, 6)
+					assert.Len(t, metric, 5)
 					assert.Equal(t, float64(0), metric["value"])
 				}
 
 				assert.Contains(t, logzioPingStats.addresses, metric[addressLabelName])
-				assert.NotEmpty(t, metric[ipLabelName])
 				assert.Equal(t, "us-east-1", metric[awsRegionLabelName])
 				assert.Equal(t, "test", metric[awsLambdaFunctionLabelName])
 			}
@@ -518,24 +516,23 @@ func TestRun_Success(t *testing.T) {
 				assert.Contains(t, []string{rttMetricName, probesSentMetricName, successfulProbesMetricName, probesFailedMetricName}, metric["__name__"])
 
 				if metric["__name__"] == rttMetricName {
-					assert.Len(t, metric, 9)
+					assert.Len(t, metric, 8)
 					assert.NotEmpty(t, metric["value"])
 					assert.Contains(t, []string{"1", "2", "3"}, metric[rttMetricRttIndexLabelName])
 					assert.Equal(t, "3", metric[rttMetricTotalRttsLabelName])
 					assert.Equal(t, rttMetricUnitLabelValue, metric[unitLabelName])
 				} else if metric["__name__"] == probesSentMetricName {
-					assert.Len(t, metric, 6)
+					assert.Len(t, metric, 5)
 					assert.Equal(t, float64(3), metric["value"])
 				} else if metric["__name__"] == successfulProbesMetricName {
-					assert.Len(t, metric, 6)
+					assert.Len(t, metric, 5)
 					assert.Equal(t, float64(3), metric["value"])
 				} else if metric["__name__"] == probesFailedMetricName {
-					assert.Len(t, metric, 6)
+					assert.Len(t, metric, 5)
 					assert.Equal(t, float64(0), metric["value"])
 				}
 
 				assert.Contains(t, []string{"www.google.com:80", "listener.logz.io:8053"}, metric[addressLabelName])
-				assert.NotEmpty(t, metric[ipLabelName])
 				assert.Equal(t, "us-east-1", metric[awsRegionLabelName])
 				assert.Equal(t, "test", metric[awsLambdaFunctionLabelName])
 			}

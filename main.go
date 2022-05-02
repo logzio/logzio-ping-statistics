@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-lambda-go/cfn"
 	"github.com/aws/aws-lambda-go/lambda"
 	metricsExporter "github.com/logzio/go-metrics-sdk"
 	"go.opentelemetry.io/otel/attribute"
@@ -41,7 +42,6 @@ const (
 	awsRegionLabelName           = "aws_region"
 	awsLambdaFunctionLabelName   = "aws_lambda_function"
 	addressLabelName             = "address"
-	ipLabelName                  = "ip"
 	unitLabelName                = "unit"
 	rttMetricRttIndexLabelName   = "rtt_index"
 	rttMetricTotalRttsLabelName  = "total_rtts"
@@ -69,7 +69,6 @@ type pingStatistics struct {
 	probesSent       int
 	successfulProbes int
 	probesFailed     int
-	addressIP        string
 	address          string
 	rtts             []float64
 }
@@ -124,8 +123,7 @@ func (lps *logzioPingStatistics) getAddressPingStatistics(address string) (*ping
 
 	rtts := make([]float64, 0)
 	successfulProbes := 0
-	var addressIP string
-
+	
 	for count := 0; count < lps.pingCount; count++ {
 		time.Sleep(lps.pingInterval)
 
@@ -137,10 +135,6 @@ func (lps *logzioPingStatistics) getAddressPingStatistics(address string) (*ping
 		}
 
 		end := time.Now()
-
-		if count+1 == lps.pingCount {
-			addressIP = conn.RemoteAddr().String()
-		}
 
 		if err = conn.Close(); err != nil {
 			return nil, fmt.Errorf("error closing connection: %v", err)
@@ -160,7 +154,6 @@ func (lps *logzioPingStatistics) getAddressPingStatistics(address string) (*ping
 		probesSent:       lps.pingCount,
 		successfulProbes: successfulProbes,
 		probesFailed:     lps.pingCount - successfulProbes,
-		addressIP:        addressIP,
 		address:          address,
 		rtts:             rtts,
 	}, nil
@@ -216,7 +209,6 @@ func (lps *logzioPingStatistics) getRttObserverCallback() func(context.Context, 
 			for index, rtt := range pingStats.rtts {
 				result.Observe(rtt,
 					attribute.String(addressLabelName, pingStats.address),
-					attribute.String(ipLabelName, pingStats.addressIP),
 					attribute.Int(rttMetricRttIndexLabelName, index+1),
 					attribute.Int(rttMetricTotalRttsLabelName, len(pingStats.rtts)),
 					attribute.String(unitLabelName, rttMetricUnitLabelValue),
@@ -232,8 +224,7 @@ func (lps *logzioPingStatistics) getProbesSentObserverCallback() func(context.Co
 
 		for _, pingStats := range lps.pingsStats {
 			result.Observe(int64(pingStats.probesSent),
-				attribute.String(addressLabelName, pingStats.address),
-				attribute.String(ipLabelName, pingStats.addressIP))
+				attribute.String(addressLabelName, pingStats.address))
 		}
 	}
 }
@@ -244,8 +235,7 @@ func (lps *logzioPingStatistics) getSuccessfulProbesObserverCallback() func(cont
 
 		for _, pingStats := range lps.pingsStats {
 			result.Observe(int64(pingStats.successfulProbes),
-				attribute.String(addressLabelName, pingStats.address),
-				attribute.String(ipLabelName, pingStats.addressIP))
+				attribute.String(addressLabelName, pingStats.address))
 		}
 	}
 }
@@ -256,8 +246,7 @@ func (lps *logzioPingStatistics) getProbesFailedObserverCallback() func(context.
 
 		for _, pingStats := range lps.pingsStats {
 			result.Observe(int64(pingStats.probesFailed),
-				attribute.String(addressLabelName, pingStats.address),
-				attribute.String(ipLabelName, pingStats.addressIP))
+				attribute.String(addressLabelName, pingStats.address))
 		}
 	}
 }
@@ -362,11 +351,26 @@ func getNumberEnvValue(envValue string, envName string) (*int, error) {
 	return &numberEnvValue, nil
 }
 
-func HandleRequest(ctx context.Context) error {
+// Wrapper for first invocation from cloud formation custom resource
+func customResourceRun(ctx context.Context, event cfn.Event) (physicalResourceID string, data map[string]interface{}, err error) {
+	if err = run(ctx); err != nil {
+		errorLogger.Printf("Error in first running: %s", err.Error())
+	}
+
+	return
+}
+
+func HandleRequest(ctx context.Context, event cfn.Event) error {
 	infoLogger.Println("Starting to get ping statistics for all addresses...")
 
-	if err := run(ctx); err != nil {
-		return err
+	// If requestID is empty - the lambda call is not from a custom resource
+	if event.RequestID == "" {
+		if err := run(ctx); err != nil {
+			return err
+		}
+	} else {
+		// Custom resource invocation
+		lambda.Start(cfn.LambdaWrap(customResourceRun))
 	}
 
 	infoLogger.Println("The ping statistics have been sent to Logz.io successfully")
