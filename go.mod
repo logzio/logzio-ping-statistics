@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/aws/aws-lambda-go v1.28.0
 	github.com/golang/snappy v0.0.4
-	github.com/jarcoal/httpmock v1.1.0
+	github.com/jarcoal/httpmock v1.3.1
 	github.com/logzio/go-metrics-sdk v1.0.0
 	github.com/prometheus/prometheus v1.8.2-0.20210928085443-fafb309d4027
 	github.com/stretchr/testify v1.7.0
