@@ -31,6 +31,7 @@ All metrics that were sent from the Lambda function will have the prefix `ping_s
 ## Changelog
 **v1.0.2**:
  - Update logzio logs lambda extention version
+
 **v1.0.1**:
  - Remove IP label from the metrics.
  - After deployment the Lambda function will be invoked immediately instead of waiting for scheduler to invoke it, and will be invoked each interval (according the scheduling expression).
