@@ -360,30 +360,21 @@ func customResourceRun(ctx context.Context, event cfn.Event) (physicalResourceID
 	return
 }
 
-func HandleRequest(ctx context.Context, event cfn.Event) (interface{}, error) {
+func HandleRequest(ctx context.Context, event cfn.Event) error {
 	infoLogger.Println("Starting to get ping statistics for all addresses...")
 
-	// If event.RequestID is present, then it is a custom resource invocation.
-	if event.RequestID != "" {
-		// Directly call customResourceRun and return its response.
-		physicalResourceID, data, err := customResourceRun(ctx, event)
-		if err != nil {
-			return nil, err
+	// If requestID is empty - the lambda call is not from a custom resource
+	if event.RequestID == "" {
+		if err := run(ctx); err != nil {
+			return err
 		}
-		// cfn.LambdaWrap expects you to return these values.
-		return map[string]interface{}{
-			"PhysicalResourceId": physicalResourceID,
-			"Data":               data,
-		}, nil
-	}
-
-	// Otherwise, it's a normal invocation.
-	if err := run(ctx); err != nil {
-		return nil, err
+	} else {
+		// Custom resource invocation
+		lambda.Start(cfn.LambdaWrap(customResourceRun))
 	}
 
 	infoLogger.Println("The ping statistics have been sent to Logz.io successfully")
-	return nil, nil
+	return nil
 }
 
 func main() {
