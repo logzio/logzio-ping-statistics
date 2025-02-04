@@ -29,6 +29,10 @@ To start just press the button and follow the instructions:
 All metrics that were sent from the Lambda function will have the prefix `ping_stats` in their name. 
 
 ## Changelog
+**v1.0.3**:
+ - Fix cutom resource run logic
+ - Update `LogzioLambdaExtensionLogs` version 16 -> 18
+
 **v1.0.2**:
  - Update logzio logs lambda extention version
 

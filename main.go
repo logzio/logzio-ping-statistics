@@ -123,7 +123,7 @@ func (lps *logzioPingStatistics) getAddressPingStatistics(address string) (*ping
 
 	rtts := make([]float64, 0)
 	successfulProbes := 0
-	
+
 	for count := 0; count < lps.pingCount; count++ {
 		time.Sleep(lps.pingInterval)
 
@@ -356,8 +356,7 @@ func customResourceRun(ctx context.Context, event cfn.Event) (physicalResourceID
 	if err = run(ctx); err != nil {
 		errorLogger.Printf("Error in first running: %s", err.Error())
 	}
-
-	return
+	return "MyPingResourceID", map[string]interface{}{}, err
 }
 
 func HandleRequest(ctx context.Context, event cfn.Event) error {
