@@ -30,7 +30,7 @@ All metrics that were sent from the Lambda function will have the prefix `ping_s
 
 ## Changelog
 **v1.0.3**:
- - Fix cutom resource run
+ - Fix cutom resource run logic
 
 **v1.0.2**:
  - Update logzio logs lambda extention version
