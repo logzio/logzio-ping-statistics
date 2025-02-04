@@ -387,6 +387,5 @@ func HandleRequest(ctx context.Context, event cfn.Event) (interface{}, error) {
 }
 
 func main() {
-	// Start the Lambda using the single entry point.
 	lambda.Start(HandleRequest)
 }
