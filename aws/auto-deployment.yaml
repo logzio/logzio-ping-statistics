@@ -45,11 +45,6 @@ Parameters:
     Description: >-
       Your Logz.io metrics token (Can be retrieved from the Manage Token page).
     MinLength: 1
-  LogzioLogsToken:
-    Type: String
-    Description: >-
-      Your Logz.io logs token (Can be retrieved from the Manage Token page).
-    MinLength: 1
   SchedulingInterval:
     Type: String
     Description: >-
@@ -76,8 +71,6 @@ Resources:
       Timeout: 300
       MemorySize: 1024
       ReservedConcurrentExecutions: 1
-      Layers:
-        - arn:aws:lambda:us-east-1:486140753397:layer:LogzioLambdaExtensionLogs:16
       Environment:
         Variables:
           ADDRESSES: !Ref Addresses
@@ -93,8 +86,6 @@ Resources:
             - ''
             - - !Ref LogzioListener
               - ':8071'
-          LOGZIO_LOGS_TOKEN: !Ref LogzioLogsToken
-          LOGS_EXT_LOG_LEVEL: 'info'
           ENABLE_EXTENSION_LOGS: 'false'
           ENABLE_PLATFORM_LOGS: 'false'
           GROK_PATTERNS: ''
