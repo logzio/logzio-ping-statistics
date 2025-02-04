@@ -356,8 +356,7 @@ func customResourceRun(ctx context.Context, event cfn.Event) (physicalResourceID
 	if err = run(ctx); err != nil {
 		errorLogger.Printf("Error in first running: %s", err.Error())
 	}
-
-	return
+	return "MyPingResourceID", map[string]interface{}{}, err
 }
 
 func HandleRequest(ctx context.Context, event cfn.Event) error {
