@@ -77,7 +77,7 @@ Resources:
       MemorySize: 1024
       ReservedConcurrentExecutions: 1
       Layers:
-        - arn:aws:lambda:us-east-1:486140753397:layer:LogzioLambdaExtensionLogs:18
+        - arn:aws:lambda:us-east-1:486140753397:layer:LogzioLambdaExtensionLogs:19
       Environment:
         Variables:
           ADDRESSES: !Ref Addresses
