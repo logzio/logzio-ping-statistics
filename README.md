@@ -30,7 +30,7 @@ All metrics that were sent from the Lambda function will have the prefix `ping_s
 
 ## Changelog
 **v1.0.4**:
-- Update `LogzioLambdaExtensionLogs` version 16 -> 19
+- Update `LogzioLambdaExtensionLogs` version 18 -> 19
 
 **v1.0.3**:
  - Fix custom resource run logic
