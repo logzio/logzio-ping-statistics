@@ -3,7 +3,7 @@ module github.com/logzio/logzio-ping-statistics
 go 1.17
 
 require (
-	github.com/aws/aws-lambda-go v1.52.0
+	github.com/aws/aws-lambda-go v1.53.0
 	github.com/golang/snappy v0.0.4
 	github.com/jarcoal/httpmock v1.1.0
 	github.com/logzio/go-metrics-sdk v1.0.0
